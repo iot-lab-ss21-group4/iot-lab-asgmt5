@@ -1,25 +1,15 @@
 import argparse
 import os
 import threading
-from typing import List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 import optuna
-import pandas as pd
 import statsmodels.api as sm
 from sklearn.metrics import mean_squared_error
 from statsmodels.base.wrapper import ResultsWrapper
 
-
-def load_csv_data(path: str) -> Tuple[List[str], pd.DataFrame]:
-    ts: pd.DataFrame = pd.read_csv(path)
-    ts.index = pd.to_datetime(ts.t, unit="s")
-    ts.index.freq = pd.DateOffset(minutes=1)
-    ts["hour_of_day"] = ts.index.hour
-    ts["day_of_week"] = ts.index.dayofweek
-    ts["month_of_year"] = ts.index.month
-    return ["hour_of_day", "day_of_week", "month_of_year"], ts
+from utils import load_csv_data
 
 
 def train(args: argparse.Namespace):

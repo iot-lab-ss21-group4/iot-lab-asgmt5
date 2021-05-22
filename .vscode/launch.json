@@ -12,7 +12,9 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "args": [
-                "pred",
+                // ---args for SARIMAX prediction---
+                // "pred",
+                // ---args for SARIMAX training-----
                 // "train",
                 // "--plot-fitted-model",
             ],
