@@ -24,7 +24,7 @@ def train(args: argparse.Namespace):
     trial_dict = {}
     trial_lock = threading.RLock()
 
-    def objective(trial: optuna.Trial):
+    def objective(trial: optuna.Trial) -> float:
         # past_days, past_weeks = 1, 0
         # past_day_offsets = np.zeros(4 * 7, dtype=np.int)
         # past_day_offsets[np.concatenate([np.arange(past_days), 7 * (1 + np.arange(past_weeks))])] = 1
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     pred_parser.add_argument(
         "--pred-data-path",
         type=str,
-        default=os.path.join("datasets", "pred.csv"),
+        default=os.path.join("datasets", "pred_sarimax.csv"),
         help="Path to the .csv file to be used for prediction.",
     )
     pred_parser.add_argument(
