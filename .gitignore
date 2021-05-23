@@ -170,6 +170,5 @@ Thumbs.db
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,standardml,python
 
-/datasets/
 /hyperparams/
 /checkpoints/
