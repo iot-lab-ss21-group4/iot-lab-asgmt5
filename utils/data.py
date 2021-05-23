@@ -3,10 +3,12 @@ from typing import List, Tuple
 import numpy as np
 import pandas as pd
 
-LAG_FEATURE_TEMPLATE = "lag{}_{}"
 DEFAULT_FLOAT_TYPE = np.float32
 TIME_COLUMN = "t"
 UNIVARIATE_DATA_COLUMN = "count"
+DT_COLUMN = "dT"
+DERIVATIVE_COLUMN = "d_{}/dT".format(UNIVARIATE_DATA_COLUMN)
+LAG_FEATURE_TEMPLATE = "lag{}_" + UNIVARIATE_DATA_COLUMN
 
 
 def load_csv_data(path: str) -> Tuple[List[str], pd.DataFrame]:
@@ -36,17 +38,16 @@ def extract_features(ts: pd.DataFrame, lag_order: int = 2) -> Tuple[List[str], p
     cols_added: List[str] = []
     # Extract lag-k outputs
     for lag in range(1, lag_order + 1):
-        lag_col = LAG_FEATURE_TEMPLATE.format(lag, UNIVARIATE_DATA_COLUMN)
+        lag_col = LAG_FEATURE_TEMPLATE.format(lag)
         ts[lag_col] = ts[UNIVARIATE_DATA_COLUMN].shift(lag)
         cols_added.append(lag_col)
     # Extract dT and d(count)/dT.
-    dT_col = "dT"
-    ts[dT_col] = (ts[TIME_COLUMN] - ts[TIME_COLUMN].shift(1)).astype(DEFAULT_FLOAT_TYPE)
-    cols_added.append(dT_col)
+    DT_COLUMN = "dT"
+    ts[DT_COLUMN] = (ts[TIME_COLUMN] - ts[TIME_COLUMN].shift(1)).astype(DEFAULT_FLOAT_TYPE)
+    cols_added.append(DT_COLUMN)
 
-    derivative_col = "d_{}/dT".format(UNIVARIATE_DATA_COLUMN)
-    ts[derivative_col] = (ts[UNIVARIATE_DATA_COLUMN].shift(1) - ts[UNIVARIATE_DATA_COLUMN].shift(2)) / (
+    ts[DERIVATIVE_COLUMN] = (ts[UNIVARIATE_DATA_COLUMN].shift(1) - ts[UNIVARIATE_DATA_COLUMN].shift(2)) / (
         ts[TIME_COLUMN].shift(1) - ts[TIME_COLUMN].shift(2)
     ).astype(DEFAULT_FLOAT_TYPE)
-    cols_added.append(derivative_col)
+    cols_added.append(DERIVATIVE_COLUMN)
     return cols_added, ts, max(lag_order, 2)

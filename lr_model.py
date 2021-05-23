@@ -10,7 +10,7 @@ import pandas as pd
 from sklearn.linear_model import Lasso
 
 from utils import extract_features, load_csv_data
-from utils.data import DEFAULT_FLOAT_TYPE, LAG_FEATURE_TEMPLATE, TIME_COLUMN, UNIVARIATE_DATA_COLUMN
+from utils.data import DEFAULT_FLOAT_TYPE, DERIVATIVE_COLUMN, LAG_FEATURE_TEMPLATE, TIME_COLUMN, UNIVARIATE_DATA_COLUMN
 
 # Lag order must be >= 1.
 LAG_ORDER = 2
@@ -65,18 +65,24 @@ def train(args: argparse.Namespace):
 
 
 def predict(args: argparse.Namespace):
-    # Assumption: The first 'LAG_ORDER' rows were filled with count.
-    y_column, x_columns, ts = load_data(args.pred_data_path)
+    # Assumption: The first 'useless_rows' many rows were filled with count.
+    y_column, x_columns, ts, useless_rows = load_data(args.pred_data_path)
     with open(args.model_path, "rb") as f:
         model_fit: Lasso = pickle.load(f)
 
-    for i in range(LAG_ORDER, ts.shape[0]):
+    for i in range(useless_rows, ts.shape[0]):
         pred_i = model_fit.predict(ts[x_columns].iloc[i : i + 1])
         ts.loc[ts.index[i], y_column] = pred_i
         for lag in range(1, LAG_ORDER + 1):
             if i + lag >= ts.shape[0]:
                 break
-            ts.loc[ts.index[i + lag], LAG_FEATURE_TEMPLATE.format(lag, y_column)] = pred_i
+            ts.loc[ts.index[i + lag], LAG_FEATURE_TEMPLATE.format(lag)] = pred_i
+        for lag in range(1, 3):
+            if i < 1 or i + lag >= ts.shape[0]:
+                break
+            ts.loc[ts.index[i + lag], DERIVATIVE_COLUMN] = (
+                ts.loc[ts.index[i + lag - 1], y_column] - ts.loc[ts.index[i + lag - 2], y_column]
+            ) / (ts.loc[ts.index[i + lag - 1], TIME_COLUMN] - ts.loc[ts.index[i + lag - 2], TIME_COLUMN])
 
     print(np.round(ts.loc[ts.index[LAG_ORDER:], y_column].to_numpy()).astype(int).tolist())
 
@@ -113,7 +119,7 @@ if __name__ == "__main__":
     pred_parser.add_argument(
         "--pred-data-path",
         type=str,
-        default=os.path.join("datasets", "pred_lr.csv"),
+        default=os.path.join("datasets", "real_pred_lr.csv"),
         help="Path to the .csv file to be used for prediction.",
     )
     pred_parser.add_argument(
