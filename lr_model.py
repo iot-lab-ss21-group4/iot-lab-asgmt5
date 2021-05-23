@@ -10,28 +10,27 @@ import pandas as pd
 from sklearn.linear_model import Lasso
 
 from utils import extract_features, load_csv_data
-from utils.data import LAG_FEATURE_TEMPLATE
+from utils.data import DEFAULT_FLOAT_TYPE, LAG_FEATURE_TEMPLATE, TIME_COLUMN, UNIVARIATE_DATA_COLUMN
 
 # Lag order must be >= 1.
 LAG_ORDER = 2
 
 
-def load_data(path: str) -> Tuple[str, List[str], pd.DataFrame]:
-    y_column, x_columns = "count", ["t"]
+def load_data(path: str) -> Tuple[str, List[str], pd.DataFrame, int]:
+    y_column, x_columns = UNIVARIATE_DATA_COLUMN, [TIME_COLUMN]
     cols_added, ts = load_csv_data(path)
     x_columns.extend(cols_added)
-    columns_to_convert = [y_column] + cols_added
-    ts[columns_to_convert] = ts[columns_to_convert].astype(np.float32)
+    ts[y_column] = ts[y_column].astype(DEFAULT_FLOAT_TYPE)
 
-    cols_added, ts = extract_features(ts, y_column, lag_order=LAG_ORDER)
+    cols_added, ts, useless_rows = extract_features(ts, lag_order=LAG_ORDER)
     x_columns.extend(cols_added)
 
-    return y_column, x_columns, ts
+    return y_column, x_columns, ts, useless_rows
 
 
 def train(args: argparse.Namespace):
-    y_column, x_columns, ts = load_data(args.training_data_path)
-    ts = ts.iloc[LAG_ORDER:]
+    y_column, x_columns, ts, useless_rows = load_data(args.training_data_path)
+    ts = ts.iloc[useless_rows:]
 
     train_len = int(ts.shape[0] * 0.9)
     train_ts, test_ts = ts.iloc[:train_len], ts.iloc[train_len:]

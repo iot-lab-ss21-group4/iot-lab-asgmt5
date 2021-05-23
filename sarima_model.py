@@ -10,13 +10,13 @@ from sklearn.metrics import mean_squared_error
 from statsmodels.base.wrapper import ResultsWrapper
 
 from utils import load_csv_data
+from utils.data import DEFAULT_FLOAT_TYPE, UNIVARIATE_DATA_COLUMN
 
 
 def train(args: argparse.Namespace):
-    y_column = "count"
+    y_column = UNIVARIATE_DATA_COLUMN
     exog_columns, ts = load_csv_data(args.training_data_path)
-    columns_to_convert = [y_column] + exog_columns
-    ts[columns_to_convert] = ts[columns_to_convert].astype(np.float32)
+    ts[y_column] = ts[y_column].astype(DEFAULT_FLOAT_TYPE)
 
     training_len = int(ts.shape[0] * 0.9)
     train_ts, test_ts = ts.iloc[:training_len], ts.iloc[training_len:]
@@ -69,7 +69,6 @@ def train(args: argparse.Namespace):
 
 def predict(args: argparse.Namespace):
     exog_columns, ts = load_csv_data(args.pred_data_path)
-    ts[exog_columns] = ts[exog_columns].astype(np.float32)
 
     model_fit = ResultsWrapper.load(args.model_path)
     pred = model_fit.forecast(ts.shape[0], exog=ts[exog_columns])

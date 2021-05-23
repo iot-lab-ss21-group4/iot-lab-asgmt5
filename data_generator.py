@@ -7,6 +7,8 @@ from datetime import datetime
 
 import pandas as pd
 
+from utils.data import TIME_COLUMN, UNIVARIATE_DATA_COLUMN
+
 
 # Function that models count of students in the room based on time of the day
 def count_in_room(cur_val, coef, delay_val, capacity, falloff_val):
@@ -37,7 +39,7 @@ def main(args: argparse.Namespace):
     arrival_and_exit_coef_min = room_capacity / arrival_and_exit_delay_min
 
     data_range = range(timestamps_onemin)
-    generated_ts = pd.DataFrame(index=data_range, columns=["t", "count"])
+    generated_ts = pd.DataFrame(index=data_range, columns=[TIME_COLUMN, UNIVARIATE_DATA_COLUMN])
 
     # Generating simulated students' count data -
     for i in data_range:
