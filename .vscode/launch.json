@@ -13,7 +13,7 @@
             "cwd": "${workspaceFolder}",
             "args": [
                 // ---args for L.R. prediction------
-                "pred",
+                // "pred",
                 // ---args for L.R. training--------
                 // "train",
                 // "--training-data-path",
@@ -22,8 +22,8 @@
                 // ---args for SARIMAX prediction---
                 // "pred",
                 // ---args for SARIMAX training-----
-                // "train",
-                // "--plot-fitted-model",
+                "train",
+                "--plot-fitted-model",
             ],
         }
     ]

@@ -1,5 +1,6 @@
 import argparse
 import os
+import pickle
 import threading
 
 import matplotlib.pyplot as plt
@@ -9,17 +10,30 @@ import statsmodels.api as sm
 from sklearn.metrics import mean_squared_error
 from statsmodels.base.wrapper import ResultsWrapper
 
-from utils import load_csv_data
-from utils.data import DEFAULT_FLOAT_TYPE, UNIVARIATE_DATA_COLUMN
+from utils import load_csv_data, regularize_data
+from utils.data import DEFAULT_FLOAT_TYPE, TIME_COLUMN, UNIVARIATE_DATA_COLUMN
+
+EXTRA_INFO_FILE_POSTFIX = ".info"
 
 
 def train(args: argparse.Namespace):
     y_column = UNIVARIATE_DATA_COLUMN
     exog_columns, ts = load_csv_data(args.training_data_path)
     ts[y_column] = ts[y_column].astype(DEFAULT_FLOAT_TYPE)
+    freq, ts = regularize_data(ts)
+    # Remove constant columns
+    constant_columns = ~((ts != ts.iloc[0]).any())
+    exog_columns_set = set(exog_columns)
+    for col in exog_columns:
+        if constant_columns[col]:
+            ts.drop(columns=[col], inplace=True)
+            exog_columns_set.remove(col)
+    exog_columns = list(exog_columns_set)
 
     training_len = int(ts.shape[0] * 0.9)
     train_ts, test_ts = ts.iloc[:training_len], ts.iloc[training_len:]
+    with open(args.model_path + EXTRA_INFO_FILE_POSTFIX, "wb") as f:
+        pickle.dump((freq, train_ts.loc[train_ts.index[-1], TIME_COLUMN], exog_columns), f)
 
     trial_dict = {}
     trial_lock = threading.RLock()
@@ -68,7 +82,11 @@ def train(args: argparse.Namespace):
 
 
 def predict(args: argparse.Namespace):
-    exog_columns, ts = load_csv_data(args.pred_data_path)
+    _, ts = load_csv_data(args.pred_data_path)
+    # TODO: use freq and last_t to forecast beyond the last datapoint and
+    # use interpolation to predict exactly at the datapoint times.
+    with open(args.model_path + EXTRA_INFO_FILE_POSTFIX, "rb") as f:
+        freq, last_t, exog_columns = pickle.load(f)
 
     model_fit = ResultsWrapper.load(args.model_path)
     pred = model_fit.forecast(ts.shape[0], exog=ts[exog_columns])
@@ -82,7 +100,7 @@ if __name__ == "__main__":
     train_parser.add_argument(
         "--training-data-path",
         type=str,
-        default=os.path.join("datasets", "out.csv"),
+        default=os.path.join("datasets", "real_counts.csv"),
         help="Path to the .csv file to be used for training.",
     )
     train_parser.add_argument(
@@ -109,7 +127,7 @@ if __name__ == "__main__":
     pred_parser.add_argument(
         "--pred-data-path",
         type=str,
-        default=os.path.join("datasets", "pred_sarimax.csv"),
+        default=os.path.join("datasets", "real_pred_sarimax.csv"),
         help="Path to the .csv file to be used for prediction.",
     )
     pred_parser.add_argument(

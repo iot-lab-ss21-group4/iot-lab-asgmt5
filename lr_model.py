@@ -1,7 +1,6 @@
 import argparse
 import os
 import pickle
-from typing import List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,27 +8,12 @@ import optuna
 import pandas as pd
 from sklearn.linear_model import Lasso
 
-from utils import extract_features, load_csv_data
-from utils.data import DEFAULT_FLOAT_TYPE, DERIVATIVE_COLUMN, LAG_FEATURE_TEMPLATE, TIME_COLUMN, UNIVARIATE_DATA_COLUMN
-
-# Lag order must be >= 1.
-LAG_ORDER = 2
-
-
-def load_data(path: str) -> Tuple[str, List[str], pd.DataFrame, int]:
-    y_column, x_columns = UNIVARIATE_DATA_COLUMN, [TIME_COLUMN]
-    cols_added, ts = load_csv_data(path)
-    x_columns.extend(cols_added)
-    ts[y_column] = ts[y_column].astype(DEFAULT_FLOAT_TYPE)
-
-    cols_added, ts, useless_rows = extract_features(ts, lag_order=LAG_ORDER)
-    x_columns.extend(cols_added)
-
-    return y_column, x_columns, ts, useless_rows
+from utils import load_csv_data_with_features
+from utils.data import DERIVATIVE_COLUMN, LAG_FEATURE_TEMPLATE, LAG_ORDER, TIME_COLUMN
 
 
 def train(args: argparse.Namespace):
-    y_column, x_columns, ts, useless_rows = load_data(args.training_data_path)
+    y_column, x_columns, ts, useless_rows = load_csv_data_with_features(args.training_data_path)
     ts = ts.iloc[useless_rows:]
 
     train_len = int(ts.shape[0] * 0.9)
@@ -66,7 +50,7 @@ def train(args: argparse.Namespace):
 
 def predict(args: argparse.Namespace):
     # Assumption: The first 'useless_rows' many rows were filled with count.
-    y_column, x_columns, ts, useless_rows = load_data(args.pred_data_path)
+    y_column, x_columns, ts, useless_rows = load_csv_data_with_features(args.pred_data_path)
     with open(args.model_path, "rb") as f:
         model_fit: Lasso = pickle.load(f)
 

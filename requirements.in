@@ -3,3 +3,4 @@ statsmodels
 optuna
 numpy
 sklearn
+scipy
