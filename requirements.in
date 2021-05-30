@@ -4,3 +4,6 @@ optuna
 numpy
 sklearn
 scipy
+torch
+matplotlib
+pytorch-lightning

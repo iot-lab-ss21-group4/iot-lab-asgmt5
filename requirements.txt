@@ -4,10 +4,26 @@
 #
 #    pip-compile requirements.in
 #
+absl-py==0.12.0
+    # via tensorboard
+aiohttp==3.7.4.post0
+    # via fsspec
 alembic==1.6.3
     # via optuna
+async-timeout==3.0.1
+    # via aiohttp
 attrs==21.2.0
-    # via cmd2
+    # via
+    #   aiohttp
+    #   cmd2
+cachetools==4.2.2
+    # via google-auth
+certifi==2020.12.5
+    # via requests
+chardet==4.0.0
+    # via
+    #   aiohttp
+    #   requests
 cliff==3.7.0
     # via optuna
 cmaes==0.8.2
@@ -20,34 +36,65 @@ colorama==0.4.4
     #   colorlog
 colorlog==5.0.1
     # via optuna
+cycler==0.10.0
+    # via matplotlib
+fsspec[http]==2021.5.0
+    # via pytorch-lightning
+future==0.18.2
+    # via pytorch-lightning
+google-auth-oauthlib==0.4.4
+    # via tensorboard
+google-auth==1.30.1
+    # via
+    #   google-auth-oauthlib
+    #   tensorboard
 greenlet==1.1.0
     # via sqlalchemy
-importlib-metadata==4.0.1
+grpcio==1.38.0
+    # via tensorboard
+idna==2.10
     # via
-    #   cmd2
-    #   prettytable
-    #   sqlalchemy
-    #   stevedore
+    #   requests
+    #   yarl
 joblib==1.0.1
     # via scikit-learn
+kiwisolver==1.3.1
+    # via matplotlib
 mako==1.1.4
     # via alembic
+markdown==3.3.4
+    # via tensorboard
 markupsafe==2.0.1
     # via mako
+matplotlib==3.4.2
+    # via -r requirements.in
+multidict==5.1.0
+    # via
+    #   aiohttp
+    #   yarl
 numpy==1.20.3
     # via
     #   -r requirements.in
     #   cmaes
+    #   matplotlib
     #   optuna
     #   pandas
     #   patsy
+    #   pytorch-lightning
     #   scikit-learn
     #   scipy
     #   statsmodels
+    #   tensorboard
+    #   torch
+oauthlib==3.1.0
+    # via requests-oauthlib
 optuna==2.7.0
     # via -r requirements.in
 packaging==20.9
-    # via optuna
+    # via
+    #   optuna
+    #   pytorch-lightning
+    #   torchmetrics
 pandas==1.2.4
     # via
     #   -r requirements.in
@@ -58,26 +105,53 @@ pbr==5.6.0
     # via
     #   cliff
     #   stevedore
+pillow==8.2.0
+    # via matplotlib
 prettytable==2.1.0
     # via cliff
+protobuf==3.17.1
+    # via tensorboard
+pyasn1-modules==0.2.8
+    # via google-auth
+pyasn1==0.4.8
+    # via
+    #   pyasn1-modules
+    #   rsa
+pydeprecate==0.3.0
+    # via pytorch-lightning
 pyparsing==2.4.7
     # via
     #   cliff
+    #   matplotlib
     #   packaging
 pyperclip==1.8.2
     # via cmd2
-pyreadline==2.1
+pyreadline3==3.3
     # via cmd2
 python-dateutil==2.8.1
     # via
     #   alembic
+    #   matplotlib
     #   pandas
 python-editor==1.0.4
     # via alembic
+pytorch-lightning==1.3.3
+    # via -r requirements.in
 pytz==2021.1
     # via pandas
 pyyaml==5.4.1
-    # via cliff
+    # via
+    #   cliff
+    #   pytorch-lightning
+requests-oauthlib==1.3.0
+    # via google-auth-oauthlib
+requests==2.25.1
+    # via
+    #   fsspec
+    #   requests-oauthlib
+    #   tensorboard
+rsa==4.7.2
+    # via google-auth
 scikit-learn==0.24.2
     # via sklearn
 scipy==1.6.3
@@ -88,8 +162,14 @@ scipy==1.6.3
     #   statsmodels
 six==1.16.0
     # via
+    #   absl-py
+    #   cycler
+    #   google-auth
+    #   grpcio
     #   patsy
+    #   protobuf
     #   python-dateutil
+    #   tensorboard
 sklearn==0.0
     # via -r requirements.in
 sqlalchemy==1.4.15
@@ -100,15 +180,39 @@ statsmodels==0.12.2
     # via -r requirements.in
 stevedore==3.3.0
     # via cliff
+tensorboard-plugin-wit==1.8.0
+    # via tensorboard
+tensorboard==2.4.1
+    # via pytorch-lightning
 threadpoolctl==2.1.0
     # via scikit-learn
+torch==1.8.1
+    # via
+    #   -r requirements.in
+    #   pytorch-lightning
+    #   torchmetrics
+torchmetrics==0.3.2
+    # via pytorch-lightning
 tqdm==4.60.0
-    # via optuna
+    # via
+    #   optuna
+    #   pytorch-lightning
 typing-extensions==3.10.0.0
-    # via importlib-metadata
+    # via
+    #   aiohttp
+    #   torch
+urllib3==1.26.5
+    # via requests
 wcwidth==0.2.5
     # via
     #   cmd2
     #   prettytable
-zipp==3.4.1
-    # via importlib-metadata
+werkzeug==2.0.1
+    # via tensorboard
+wheel==0.36.2
+    # via tensorboard
+yarl==1.6.3
+    # via aiohttp
+
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools
