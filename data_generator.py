@@ -63,12 +63,11 @@ def main(args: argparse.Namespace):
     generated_ts.to_csv(args.out_path, index=False)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+def add_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--out-path",
         type=str,
         default=os.path.join("datasets", "out.csv"),
         help="Path to the output '.csv' file containing generated data.",
     )
-    main(parser.parse_args())
+    parser.set_defaults(func=main)

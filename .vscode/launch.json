@@ -8,22 +8,23 @@
             "name": "Python: Current File",
             "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "program": "main.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "args": [
+                "linreg",
                 // ---args for L.R. prediction------
                 // "pred",
                 // ---args for L.R. training--------
-                // "train",
-                // "--training-data-path",
-                // "datasets/real_counts.csv",
-                // "--plot-fitted-model",
+                "train",
+                "--training-data-path",
+                "datasets/real_counts.csv",
+                "--plot-fitted-model",
                 // ---args for SARIMAX prediction---
                 // "pred",
                 // ---args for SARIMAX training-----
-                "train",
-                "--plot-fitted-model",
+                // "train",
+                // "--plot-fitted-model",
             ],
         }
     ]

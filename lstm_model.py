@@ -53,10 +53,11 @@ class LSTM(nn.Module):
 
 
 class StudentCountPredictor(pl.LightningModule):
-    def __init__(self, lstm_model, n_batch_size=64, seq_len=8):
+    def __init__(self, lstm_model, args, n_batch_size=64, seq_len=8):
         super().__init__()
 
         self.model = lstm_model
+        self.args = args
 
         self.criterion = nn.MSELoss()
         self.batch_size = n_batch_size
@@ -115,7 +116,7 @@ class StudentCountPredictor(pl.LightningModule):
 
     def prepare_data(self, stage=None):
 
-        y_column, x_columns, ts, useless_rows = load_csv_data_with_features(args.training_data_path)
+        y_column, x_columns, ts, useless_rows = load_csv_data_with_features(self.args.training_data_path)
 
         ts = ts.iloc[useless_rows:]
 
@@ -173,7 +174,7 @@ def train(args: argparse.Namespace):
     logger = TensorBoardLogger("tensorboard_logs", name="count-students")
 
     model = LSTM()
-    model_fit = StudentCountPredictor(model)
+    model_fit = StudentCountPredictor(model, args)
 
     trainer = pl.Trainer(
         logger=logger,
@@ -205,10 +206,9 @@ def predict(args: argparse.Namespace):
     pass
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    subparser = parser.add_subparsers()
-    train_parser = subparser.add_parser("train")
+def add_arguments(parser: argparse.ArgumentParser):
+    subparser = parser.add_subparsers(title="Subcommands")
+    train_parser = subparser.add_parser("train", help="Subcommand to train the model.")
     train_parser.add_argument(
         "--training-data-path",
         type=str,
@@ -233,7 +233,7 @@ if __name__ == "__main__":
     )
     train_parser.set_defaults(func=train)
 
-    pred_parser = subparser.add_parser("pred")
+    pred_parser = subparser.add_parser("pred", help="Subcommand to predict given the saved model.")
     pred_parser.add_argument(
         "--pred-data-path",
         type=str,
@@ -248,8 +248,4 @@ if __name__ == "__main__":
     )
     pred_parser.set_defaults(func=predict)
 
-    args = parser.parse_args()
-
     parser.add_argument("--gpus", default=None)
-    args.func(args)
-    # train(args)
