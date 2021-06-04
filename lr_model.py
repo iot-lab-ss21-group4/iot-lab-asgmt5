@@ -68,7 +68,7 @@ def predict(args: argparse.Namespace):
                 ts.loc[ts.index[i + lag - 1], y_column] - ts.loc[ts.index[i + lag - 2], y_column]
             ) / (ts.loc[ts.index[i + lag - 1], TIME_COLUMN] - ts.loc[ts.index[i + lag - 2], TIME_COLUMN])
 
-    print(np.round(ts.loc[ts.index[LAG_ORDER:], y_column].to_numpy()).astype(int).tolist())
+    print(np.round(ts.loc[ts.index[useless_rows:], y_column].to_numpy()).astype(int).tolist())
 
 
 if __name__ == "__main__":
