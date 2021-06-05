@@ -25,11 +25,10 @@ class TimeseriesDataset(Dataset):
         self.seq_len = seq_len
 
     def __len__(self):
-        return self.X.__len__() - (self.seq_len-1)
+        return self.X.__len__() - (self.seq_len - 1)
 
     def __getitem__(self, index):
-        return self.X[index:index+self.seq_len], self.y[index+self.seq_len-1]
-
+        return (self.X[index : index + self.seq_len], self.y[index + self.seq_len - 1])
 
 class StudentCountPredictor(pl.LightningModule):
 
@@ -287,7 +286,7 @@ if __name__ == "__main__":
     )
     train_parser.set_defaults(func=train)
 
-    pred_parser = subparser.add_parser("pred")
+    pred_parser = subparser.add_parser("pred", help="Subcommand to predict given the saved model.")
     pred_parser.add_argument(
         "--pred-data-path",
         type=str,

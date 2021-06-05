@@ -93,10 +93,9 @@ def predict(args: argparse.Namespace):
     print(np.round(pred.to_numpy()).astype(int).tolist())
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    subparser = parser.add_subparsers()
-    train_parser = subparser.add_parser("train")
+def add_arguments(parser: argparse.ArgumentParser):
+    subparser = parser.add_subparsers(title="Subcommands")
+    train_parser = subparser.add_parser("train", help="Subcommand to train the model.")
     train_parser.add_argument(
         "--training-data-path",
         type=str,
@@ -123,7 +122,7 @@ if __name__ == "__main__":
     )
     train_parser.set_defaults(func=train)
 
-    pred_parser = subparser.add_parser("pred")
+    pred_parser = subparser.add_parser("pred", help="Subcommand to predict given the saved model.")
     pred_parser.add_argument(
         "--pred-data-path",
         type=str,
@@ -137,6 +136,3 @@ if __name__ == "__main__":
         help="Path for the model to be loaded.",
     )
     pred_parser.set_defaults(func=predict)
-
-    args = parser.parse_args()
-    args.func(args)
