@@ -1,4 +1,5 @@
 import argparse
+import itertools
 import os
 import pickle
 from typing import Optional
@@ -13,7 +14,9 @@ from utils.data import DERIVATIVE_COLUMN, LAG_FEATURE_TEMPLATE, LAG_ORDER, TIME_
 
 
 def train(args: argparse.Namespace) -> Lasso:
-    y_column, x_columns, ts, useless_rows = load_data_with_features(args.training_data_path, args.is_data_csv)
+    y_column, x_columns, ts, useless_rows = load_data_with_features(
+        args.training_data_path, args.is_data_csv, detailed_seasonality=False
+    )
     ts = ts.iloc[useless_rows:]
 
     train_len = int(ts.shape[0] * 0.9)
@@ -50,14 +53,29 @@ def train(args: argparse.Namespace) -> Lasso:
     return model_fit
 
 
-def prepare_pred_input(pred_time: int, pred_data_path: str, dataset_path: str):
-    # TODO: implement this.
-    pass
+def prepare_pred_input(
+    pred_time: int, forecast_period: int, pred_data_path: str, training_dataset_path: str, is_data_csv: bool
+):
+    y_column, x_columns, ts, useless_rows = load_data_with_features(
+        training_dataset_path, is_csv=is_data_csv, detailed_seasonality=False
+    )
+    last_t = ts.loc[ts.index[-1], TIME_COLUMN]
+    forecast_times = []
+    for t in itertools.count(pred_time, -forecast_period):
+        if t <= last_t:
+            break
+        forecast_times.append(t)
+    forecast_times = list(reversed(forecast_times))
+    forecast_len = len(forecast_times)
+    pred_data = pd.DataFrame([[0, None]], index=range(forecast_len + useless_rows), columns=[TIME_COLUMN, y_column])
+    pred_data.iloc[:useless_rows] = ts.loc[ts.index[-useless_rows:], [TIME_COLUMN, y_column]]
+    pred_data.loc[pred_data.index[-forecast_len:], TIME_COLUMN] = forecast_times
+    pred_data.to_csv(pred_data_path, index=False)
 
 
 def predict(args: argparse.Namespace, model_fit: Optional[Lasso] = None) -> str:
     # Assumption: The first 'useless_rows' many rows were filled with count.
-    y_column, x_columns, ts, useless_rows = load_data_with_features(args.pred_data_path)
+    y_column, x_columns, ts, useless_rows = load_data_with_features(args.pred_data_path, detailed_seasonality=False)
     if model_fit is None:
         with open(args.model_path, "rb") as f:
             model_fit: Lasso = pickle.load(f)
@@ -97,7 +115,6 @@ def add_arguments(parser: argparse.ArgumentParser):
     )
     train_parser.add_argument(
         "--is-data-csv",
-        type=bool,
         action="store_true",
         help="Optional flag for telling if the data file is '.csv'. Otherwise it is assumed to be '.db' (sqlite).",
     )
@@ -107,7 +124,6 @@ def add_arguments(parser: argparse.ArgumentParser):
     train_parser.add_argument(
         "--storage-url",
         type=str,
-        default="sqlite:///hyperparams/params.db",
         help="URL to the database storage for the optuna study.",
     )
     train_parser.add_argument(
@@ -153,7 +169,6 @@ def add_arguments(parser: argparse.ArgumentParser):
     )
     periodic_forecast_parser.add_argument(
         "--is-data-csv",
-        type=bool,
         action="store_true",
         help="Optional flag for telling if the data file is '.csv'. Otherwise it is assumed to be '.db' (sqlite).",
     )

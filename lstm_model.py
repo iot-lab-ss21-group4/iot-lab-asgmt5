@@ -35,7 +35,7 @@ class TimeseriesDataset(Dataset):
 
 class StudentCountPredictor(pl.LightningModule):
 
-    x_columns = ["last_count", DT_COLUMN, "minute_of_day", "day_of_week", "month_of_year"]
+    x_columns = ["lag1_count", DT_COLUMN, "minute_of_day", "day_of_week", "month_of_year"]
     y_column = [UNIVARIATE_DATA_COLUMN]
     useless_rows = 1
 
@@ -266,7 +266,6 @@ def add_arguments(parser: argparse.ArgumentParser):
     )
     train_parser.add_argument(
         "--is-data-csv",
-        type=bool,
         action="store_true",
         help="Optional flag for telling if the data file is '.csv'. Otherwise it is assumed to be '.db' (sqlite).",
     )
@@ -279,7 +278,6 @@ def add_arguments(parser: argparse.ArgumentParser):
     train_parser.add_argument(
         "--storage-url",
         type=str,
-        default="sqlite:///hyperparams/lstm_params.db",
         help="URL to the database storage for the optuna study.",
     )
     train_parser.add_argument(
@@ -331,7 +329,6 @@ def add_arguments(parser: argparse.ArgumentParser):
     )
     periodic_forecast_parser.add_argument(
         "--is-data-csv",
-        type=bool,
         action="store_true",
         help="Optional flag for telling if the data file is '.csv'. Otherwise it is assumed to be '.db' (sqlite).",
     )
