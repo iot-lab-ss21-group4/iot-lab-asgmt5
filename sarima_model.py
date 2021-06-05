@@ -2,23 +2,24 @@ import argparse
 import os
 import pickle
 import threading
+from typing import Optional
 
 import matplotlib.pyplot as plt
-import numpy as np
 import optuna
-import statsmodels.api as sm
+import pandas as pd
 from sklearn.metrics import mean_squared_error
 from statsmodels.base.wrapper import ResultsWrapper
+from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResultsWrapper
 
-from utils import load_csv_data, regularize_data
+from utils import load_data, regularize_data
 from utils.data import DEFAULT_FLOAT_TYPE, TIME_COLUMN, UNIVARIATE_DATA_COLUMN
 
 EXTRA_INFO_FILE_POSTFIX = ".info"
 
 
-def train(args: argparse.Namespace):
+def train(args: argparse.Namespace) -> SARIMAXResultsWrapper:
     y_column = UNIVARIATE_DATA_COLUMN
-    exog_columns, ts = load_csv_data(args.training_data_path)
+    exog_columns, ts = load_data(args.training_data_path, args.is_data_csv)
     ts[y_column] = ts[y_column].astype(DEFAULT_FLOAT_TYPE)
     freq, ts = regularize_data(ts)
     # Remove constant columns
@@ -30,10 +31,18 @@ def train(args: argparse.Namespace):
             exog_columns_set.remove(col)
     exog_columns = list(exog_columns_set)
 
-    training_len = int(ts.shape[0] * 0.9)
-    train_ts, test_ts = ts.iloc[:training_len], ts.iloc[training_len:]
+    train_len = int(ts.shape[0] * 0.9)
+    train_ts, test_ts = ts.iloc[:train_len], ts.iloc[train_len:]
     with open(args.model_path + EXTRA_INFO_FILE_POSTFIX, "wb") as f:
-        pickle.dump((freq, train_ts.loc[train_ts.index[-1], TIME_COLUMN], exog_columns), f)
+        pickle.dump(
+            (
+                freq,
+                train_ts.loc[train_ts.index[-1], TIME_COLUMN],
+                train_ts.loc[train_ts.index[-1], UNIVARIATE_DATA_COLUMN],
+                exog_columns,
+            ),
+            f,
+        )
 
     trial_dict = {}
     trial_lock = threading.RLock()
@@ -51,7 +60,7 @@ def train(args: argparse.Namespace):
         with trial_lock:
             if (p, d, q) in trial_dict:
                 return trial_dict[(p, d, q)]
-        forecast_model = sm.tsa.statespace.SARIMAX(train_ts[y_column], exog=train_ts[exog_columns], trend="c", order=(p, d, q))
+        forecast_model = SARIMAX(train_ts[y_column], exog=train_ts[exog_columns], trend="c", order=(p, d, q))
         model_fit = forecast_model.fit(disp=False)
         test_pred = model_fit.forecast(test_ts.shape[0], exog=test_ts[exog_columns])
         loss = mean_squared_error(test_ts[y_column].to_numpy(), test_pred.to_numpy())
@@ -67,7 +76,7 @@ def train(args: argparse.Namespace):
     )
     study.optimize(objective, n_trials=50, n_jobs=1)
     p, d, q = study.best_params["p"], study.best_params["d"], study.best_params["q"]
-    forecast_model = sm.tsa.statespace.SARIMAX(train_ts[y_column], exog=train_ts[exog_columns], trend="c", order=(p, d, q))
+    forecast_model = SARIMAX(train_ts[y_column], exog=train_ts[exog_columns], trend="c", order=(p, d, q))
     model_fit = forecast_model.fit(disp=False)
     model_fit.save(args.model_path)
 
@@ -75,36 +84,55 @@ def train(args: argparse.Namespace):
         all_target = ts[y_column]
         all_pred = model_fit.predict(start=0, end=ts.shape[0] - 1, exog=test_ts[exog_columns])
         all_target.index.freq = None
-        all_pred.index.freq = None
+        all_pred.index = all_target.index
         all_target.plot(legend=True)
         all_pred.plot(legend=True)
         plt.show()
 
+    return model_fit
 
-def predict(args: argparse.Namespace):
-    _, ts = load_csv_data(args.pred_data_path)
+
+def prepare_pred_input(pred_time: int, pred_data_path: str):
+    # TODO: implement this.
+    pass
+
+
+def predict(args: argparse.Namespace, model_fit: Optional[SARIMAXResultsWrapper] = None) -> str:
+    _, ts = load_data(args.pred_data_path)
     # TODO: use freq and last_t to forecast beyond the last datapoint and
     # use interpolation to predict exactly at the datapoint times.
     with open(args.model_path + EXTRA_INFO_FILE_POSTFIX, "rb") as f:
-        freq, last_t, exog_columns = pickle.load(f)
+        freq, last_t, last_y, exog_columns = pickle.load(f)
 
-    model_fit = ResultsWrapper.load(args.model_path)
-    pred = model_fit.forecast(ts.shape[0], exog=ts[exog_columns])
-    print(np.round(pred.to_numpy()).astype(int).tolist())
+    if model_fit is None:
+        model_fit = ResultsWrapper.load(args.model_path)
+    pred: pd.Series = model_fit.forecast(ts.shape[0], exog=ts[exog_columns])
+    pred.rename(UNIVARIATE_DATA_COLUMN).round().to_csv(args.pred_out_path, index=False)
+    return args.pred_out_path
+
+
+def periodic_forecast(args: argparse.Namespace):
+    # TODO: implement this.
+    pass
 
 
 def add_arguments(parser: argparse.ArgumentParser):
     subparser = parser.add_subparsers(title="Subcommands")
+    # Add command line arguments for 'train' subcommand.
     train_parser = subparser.add_parser("train", help="Subcommand to train the model.")
     train_parser.add_argument(
         "--training-data-path",
         type=str,
-        default=os.path.join("datasets", "real_counts.csv"),
-        help="Path to the .csv file to be used for training.",
+        default=os.path.join("datasets", "real_counts.db"),
+        help="Path to the '.db' or '.csv' file to be used for training.",
     )
     train_parser.add_argument(
-        "--study-name", type=str, default="sarimax_fit", help="Optional study name for the optuna study."
+        "--is-data-csv",
+        type=bool,
+        action="store_true",
+        help="Optional flag for telling if the data file is '.csv'. Otherwise it is assumed to be '.db' (sqlite).",
     )
+    train_parser.add_argument("--study-name", type=str, help="Optional study name for the optuna study.")
     train_parser.add_argument(
         "--storage-url",
         type=str,
@@ -121,13 +149,13 @@ def add_arguments(parser: argparse.ArgumentParser):
         "--plot-fitted-model", action="store_true", help="Optional flag for plotting the fitted model predictions."
     )
     train_parser.set_defaults(func=train)
-
+    # Add command line arguments for 'pred' subcommand.
     pred_parser = subparser.add_parser("pred", help="Subcommand to predict given the saved model.")
     pred_parser.add_argument(
         "--pred-data-path",
         type=str,
         default=os.path.join("datasets", "real_pred_sarimax.csv"),
-        help="Path to the .csv file to be used for prediction.",
+        help="Path to the '.csv' file to be used for prediction.",
     )
     pred_parser.add_argument(
         "--model-path",
@@ -135,4 +163,56 @@ def add_arguments(parser: argparse.ArgumentParser):
         default=os.path.join("checkpoints", "model.sarimax"),
         help="Path for the model to be loaded.",
     )
+    pred_parser.add_argument(
+        "--pred-out-path",
+        type=str,
+        default=os.path.join("datasets", "real_pred_sarimax_out.csv"),
+        help="Path to the '.csv' file to write the prediction.",
+    )
     pred_parser.set_defaults(func=predict)
+    # Add command line arguments for 'periodic_forecast' subcommand.
+    periodic_forecast_parser = subparser.add_parser(
+        "periodic_forecast", help="Subcommand for doing periodic forecast and publishing it using MQTT."
+    )
+    periodic_forecast_parser.add_argument(
+        "--training-data-path",
+        type=str,
+        default=os.path.join("datasets", "real_counts.db"),
+        help="Path to the '.db' or '.csv' file to be used for training.",
+    )
+    periodic_forecast_parser.add_argument(
+        "--is-data-csv",
+        type=bool,
+        action="store_true",
+        help="Optional flag for telling if the data file is '.csv'. Otherwise it is assumed to be '.db' (sqlite).",
+    )
+    periodic_forecast_parser.add_argument(
+        "--study-name", type=str, help="Optional study name for the optuna study during hyperparameter optimization."
+    )
+    periodic_forecast_parser.add_argument(
+        "--storage-url",
+        type=str,
+        default="sqlite:///hyperparams/params.db",
+        help="URL to the database storage for the optuna study.",
+    )
+    periodic_forecast_parser.add_argument(
+        "--model-path",
+        type=str,
+        default=os.path.join("checkpoints", "model.sarimax"),
+        help="Path for the new model to be saved.",
+    )
+    periodic_forecast_parser.add_argument(
+        "--pred-data-path",
+        type=str,
+        default=os.path.join("datasets", "real_pred_sarimax.csv"),
+        help="Path to the '.csv' file to be used for prediction.",
+    )
+    periodic_forecast_parser.add_argument(
+        "--pred-out-path",
+        type=str,
+        default=os.path.join("datasets", "real_pred_sarimax_out.csv"),
+        help="Path to the '.csv' file to write the prediction.",
+    )
+    # TODO: add more arguments for pulling data from Elasticsearch backend
+    # and for publishing to the IoT platform using MQTT.
+    periodic_forecast_parser.set_defaults(func=periodic_forecast)

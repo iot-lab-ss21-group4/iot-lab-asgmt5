@@ -12,16 +12,14 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "args": [
-                "linreg",
+                "sarimax",
                 // ---args for L.R. prediction------
                 // "pred",
                 // ---args for L.R. training--------
-                "train",
-                "--training-data-path",
-                "datasets/real_counts.csv",
-                "--plot-fitted-model",
+                // "train",
+                // "--plot-fitted-model",
                 // ---args for SARIMAX prediction---
-                // "pred",
+                "pred",
                 // ---args for SARIMAX training-----
                 // "train",
                 // "--plot-fitted-model",

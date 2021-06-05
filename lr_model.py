@@ -1,19 +1,19 @@
 import argparse
 import os
 import pickle
+from typing import Optional
 
 import matplotlib.pyplot as plt
-import numpy as np
 import optuna
 import pandas as pd
 from sklearn.linear_model import Lasso
 
-from utils import load_csv_data_with_features
+from utils import load_data_with_features
 from utils.data import DERIVATIVE_COLUMN, LAG_FEATURE_TEMPLATE, LAG_ORDER, TIME_COLUMN
 
 
-def train(args: argparse.Namespace):
-    y_column, x_columns, ts, useless_rows = load_csv_data_with_features(args.training_data_path)
+def train(args: argparse.Namespace) -> Lasso:
+    y_column, x_columns, ts, useless_rows = load_data_with_features(args.training_data_path, args.is_data_csv)
     ts = ts.iloc[useless_rows:]
 
     train_len = int(ts.shape[0] * 0.9)
@@ -47,12 +47,20 @@ def train(args: argparse.Namespace):
         all_pred.plot(legend=True)
         plt.show()
 
+    return model_fit
 
-def predict(args: argparse.Namespace):
+
+def prepare_pred_input(pred_time: int, pred_data_path: str, dataset_path: str):
+    # TODO: implement this.
+    pass
+
+
+def predict(args: argparse.Namespace, model_fit: Optional[Lasso] = None) -> str:
     # Assumption: The first 'useless_rows' many rows were filled with count.
-    y_column, x_columns, ts, useless_rows = load_csv_data_with_features(args.pred_data_path)
-    with open(args.model_path, "rb") as f:
-        model_fit: Lasso = pickle.load(f)
+    y_column, x_columns, ts, useless_rows = load_data_with_features(args.pred_data_path)
+    if model_fit is None:
+        with open(args.model_path, "rb") as f:
+            model_fit: Lasso = pickle.load(f)
 
     for i in range(useless_rows, ts.shape[0]):
         pred_i = model_fit.predict(ts[x_columns].iloc[i : i + 1])
@@ -68,19 +76,34 @@ def predict(args: argparse.Namespace):
                 ts.loc[ts.index[i + lag - 1], y_column] - ts.loc[ts.index[i + lag - 2], y_column]
             ) / (ts.loc[ts.index[i + lag - 1], TIME_COLUMN] - ts.loc[ts.index[i + lag - 2], TIME_COLUMN])
 
-    print(np.round(ts.loc[ts.index[useless_rows:], y_column].to_numpy()).astype(int).tolist())
+    ts.loc[ts.index[useless_rows:], y_column].round().to_csv(args.pred_out_path, index=False)
+    return args.pred_out_path
+
+
+def periodic_forecast(args: argparse.Namespace):
+    # TODO: implement this.
+    pass
 
 
 def add_arguments(parser: argparse.ArgumentParser):
     subparser = parser.add_subparsers(title="Subcommands")
+    # Add command line arguments for 'train' subcommand.
     train_parser = subparser.add_parser("train", help="Subcommand to train the model.")
     train_parser.add_argument(
         "--training-data-path",
         type=str,
-        default=os.path.join("datasets", "out.csv"),
-        help="Path to the .csv file to be used for training.",
+        default=os.path.join("datasets", "real_counts.db"),
+        help="Path to the '.db' or '.csv' file to be used for training.",
     )
-    train_parser.add_argument("--study-name", type=str, default="lr_fit", help="Optional study name for the optuna study.")
+    train_parser.add_argument(
+        "--is-data-csv",
+        type=bool,
+        action="store_true",
+        help="Optional flag for telling if the data file is '.csv'. Otherwise it is assumed to be '.db' (sqlite).",
+    )
+    train_parser.add_argument(
+        "--study-name", type=str, help="Optional study name for the optuna study during hyperparameter optimization."
+    )
     train_parser.add_argument(
         "--storage-url",
         type=str,
@@ -97,13 +120,13 @@ def add_arguments(parser: argparse.ArgumentParser):
         "--plot-fitted-model", action="store_true", help="Optional flag for plotting the fitted model predictions."
     )
     train_parser.set_defaults(func=train)
-
+    # Add command line arguments for 'pred' subcommand.
     pred_parser = subparser.add_parser("pred", help="Subcommand to predict given the saved model.")
     pred_parser.add_argument(
         "--pred-data-path",
         type=str,
         default=os.path.join("datasets", "real_pred_lr.csv"),
-        help="Path to the .csv file to be used for prediction.",
+        help="Path to the '.csv' file to be used for prediction.",
     )
     pred_parser.add_argument(
         "--model-path",
@@ -111,4 +134,56 @@ def add_arguments(parser: argparse.ArgumentParser):
         default=os.path.join("checkpoints", "model.lr"),
         help="Path for the model to be loaded.",
     )
+    pred_parser.add_argument(
+        "--pred-out-path",
+        type=str,
+        default=os.path.join("datasets", "real_pred_lr_out.csv"),
+        help="Path to the '.csv' file to write the prediction.",
+    )
     pred_parser.set_defaults(func=predict)
+    # Add command line arguments for 'periodic_forecast' subcommand.
+    periodic_forecast_parser = subparser.add_parser(
+        "periodic_forecast", help="Subcommand for doing periodic forecast and publishing it using MQTT."
+    )
+    periodic_forecast_parser.add_argument(
+        "--training-data-path",
+        type=str,
+        default=os.path.join("datasets", "real_counts.db"),
+        help="Path to the '.db' or '.csv' file to be used for training.",
+    )
+    periodic_forecast_parser.add_argument(
+        "--is-data-csv",
+        type=bool,
+        action="store_true",
+        help="Optional flag for telling if the data file is '.csv'. Otherwise it is assumed to be '.db' (sqlite).",
+    )
+    periodic_forecast_parser.add_argument(
+        "--study-name", type=str, help="Optional study name for the optuna study during hyperparameter optimization."
+    )
+    periodic_forecast_parser.add_argument(
+        "--storage-url",
+        type=str,
+        default="sqlite:///hyperparams/params.db",
+        help="URL to the database storage for the optuna study.",
+    )
+    periodic_forecast_parser.add_argument(
+        "--model-path",
+        type=str,
+        default=os.path.join("checkpoints", "model.sarimax"),
+        help="Path for the new model to be saved.",
+    )
+    periodic_forecast_parser.add_argument(
+        "--pred-data-path",
+        type=str,
+        default=os.path.join("datasets", "real_pred_sarimax.csv"),
+        help="Path to the '.csv' file to be used for prediction.",
+    )
+    periodic_forecast_parser.add_argument(
+        "--pred-out-path",
+        type=str,
+        default=os.path.join("datasets", "real_pred_sarimax_out.csv"),
+        help="Path to the '.csv' file to write the prediction.",
+    )
+    # TODO: add more arguments for pulling data from Elasticsearch backend
+    # and for publishing to the IoT platform using MQTT.
+    periodic_forecast_parser.set_defaults(func=periodic_forecast)

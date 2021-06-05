@@ -1,3 +1,4 @@
+import sqlite3
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -25,8 +26,13 @@ def index_from_time_column(ts: pd.DataFrame, freq: Optional[pd.Timedelta] = None
     return ts
 
 
-def load_csv_data(path: str) -> Tuple[List[str], pd.DataFrame]:
-    ts: pd.DataFrame = pd.read_csv(path, skip_blank_lines=False)
+def load_data(path: str, is_csv: bool = True) -> Tuple[List[str], pd.DataFrame]:
+    if is_csv:
+        ts: pd.DataFrame = pd.read_csv(path, skip_blank_lines=False)
+    else:
+        con = sqlite3.connect(path)
+        ts: pd.DataFrame = pd.read_sql_query("SELECT * FROM data", con)
+        con.close()
     ts.drop_duplicates(subset=TIME_COLUMN, inplace=True)
     ts = index_from_time_column(ts)
     ts["minute_of_hour"] = ts.index.minute.to_series(index=ts.index).astype(DEFAULT_FLOAT_TYPE)
@@ -73,9 +79,9 @@ def extract_features(ts: pd.DataFrame, lag_order: int = 2) -> Tuple[List[str], p
     return cols_added, ts, max(lag_order, 2)
 
 
-def load_csv_data_with_features(path: str) -> Tuple[str, List[str], pd.DataFrame, int]:
+def load_data_with_features(path: str, is_csv: bool = True) -> Tuple[str, List[str], pd.DataFrame, int]:
     y_column, x_columns = UNIVARIATE_DATA_COLUMN, []
-    cols_added, ts = load_csv_data(path)
+    cols_added, ts = load_data(path, is_csv=is_csv)
     x_columns.extend(cols_added)
     ts[y_column] = ts[y_column].astype(DEFAULT_FLOAT_TYPE)
 
