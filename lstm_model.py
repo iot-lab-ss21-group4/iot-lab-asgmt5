@@ -1,18 +1,22 @@
 import argparse
 import os
-import pickle
 
+import matplotlib.pyplot as plt
+import numpy
 import numpy as np
+import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader, Dataset
 
 from utils import load_csv_data_with_features
+from utils.data import UNIVARIATE_DATA_COLUMN, DT_COLUMN
 
+pd.options.mode.chained_assignment = None
 
 class TimeseriesDataset(Dataset):
     def __init__(self, X: np.ndarray, y: np.ndarray, seq_len: int = 1):
@@ -24,14 +28,23 @@ class TimeseriesDataset(Dataset):
         return self.X.__len__() - (self.seq_len-1)
 
     def __getitem__(self, index):
-        return (self.X[index:index+self.seq_len], self.y[index+self.seq_len-1])
+        return self.X[index:index+self.seq_len], self.y[index+self.seq_len-1]
 
-class LSTM(nn.Module):
-    def __init__(self, n_features=7, n_hidden=128, n_layers=2, n_outputs=1):
+
+class StudentCountPredictor(pl.LightningModule):
+
+    x_columns = ["last_count", DT_COLUMN, "minute_of_day", "day_of_week", "month_of_year"]
+    y_column = [UNIVARIATE_DATA_COLUMN]
+    useless_rows = 1
+
+    def __init__(self, data_path, n_features=5, n_hidden=32, n_layers=1, n_outputs=1, n_batch_size=8, seq_len=4):
         super().__init__()
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        self.data_path = data_path
+
         self.n_hidden = n_hidden
-        self.model = nn.LSTM(
+        self.n_layers = n_layers
+        self.lstm = nn.LSTM(
             input_size=n_features,
             hidden_size=n_hidden,
             batch_first=True,  # batch of sequences
@@ -40,105 +53,92 @@ class LSTM(nn.Module):
         )
         self.regressor = nn.Linear(n_hidden, n_outputs)
 
+        self.criterion = nn.MSELoss()
+        self.batch_size = n_batch_size
+        self.seq_len = seq_len
+        self.test_results = None
+
     def forward(self, x, labels=None):
         # load to device
         x = x.to(self.device)
+        # h_0 and c_0 default to zero
         # get the hidden layers
-        lstm_out, _ = self.model(x)
+        lstm_out, (h_n, c_n) = self.lstm(x)
         # get the output of the last hidden layer
         out = lstm_out[:, -1]
         # apply linear layer
         return self.regressor(out)
 
-class StudentCountPredictor(pl.LightningModule):
-
-    def __init__(self, lstm_model, n_batch_size=64, seq_len=8):
-        super().__init__()
-
-        self.model = lstm_model
-
-        self.criterion = nn.MSELoss()
-        self.batch_size = n_batch_size
-        self.seq_len = seq_len
-
-
     def general_step(self, batch, batch_idx, mode):
-
         x, y = batch
-
-        # forward pass
-        y_hat = self.model.forward(x)
-
-        # loss
+        y_hat = self(x)
         loss = self.criterion(y_hat, y)
-
         return loss
-
-    def general_end(self, outputs, mode):
-        avg_loss = torch.stack([x[mode + '_loss'] for x in outputs]).mean()
-        self.test_results = avg_loss
-        return avg_loss
 
     def training_step(self, batch, batch_idx):
         loss = self.general_step(batch, batch_idx, "train")
-        #log = {'test_mrr': mrr_metric, 'train_loss': loss}
-        #tensorboard_logs = {'loss': loss}
-        self.logger.experiment.add_scalars("losses", {"loss": loss}, global_step=self.current_epoch)
         logs = {'train_loss': loss}
         return {'loss': loss, 'log': logs}
 
     def validation_step(self, batch, batch_idx):
         loss = self.general_step(batch, batch_idx, "val")
+        self.log('val_loss', loss)
         return {'val_loss': loss}
 
     def test_step(self, batch, batch_idx):
         loss = self.general_step(batch, batch_idx, "test")
+        self.log('test_loss', loss)
         return {'test_loss': loss}
 
-    def validation_end(self, outputs):
-        avg_loss = self.general_end(outputs, "val")
-        #tensorboard_logs = {'val_loss': avg_loss}
-        log = {'val_loss': avg_loss}
-        self.logger.experiment.add_scalars("losses_val", log)
-        return {'val_loss': avg_loss, 'log': log}
+    def validation_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        self.log('val_loss', avg_loss)
+        return {'val_loss': avg_loss}
 
-    def test_end(self, outputs):
-        avg_loss = self.general_end(outputs, "test")
-        #ensorboard_logs = {'test_loss': avg_loss}
-        #progress_bar_metrics = tensorboard_logs
-        log = {'test_loss': avg_loss}
-        self.logger.experiment.add_scalars("losses_test", log)
-        return {'test_loss': avg_loss, 'log': log}
+    def test_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+        self.log('test_loss', avg_loss)
+        return {'test_loss': avg_loss}
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=0.0001)
 
+    def fit_scaler_to_data(self, ts:pd.DataFrame):
+        self.scaler_features = MinMaxScaler(feature_range=(0,1))
+        self.scaler_features.fit(ts[self.x_columns])
+        self.scaler_count = MinMaxScaler(feature_range=(0,1))
+        self.scaler_count.fit(ts[self.y_column])
+
+    def scale_data(self, ts:pd.DataFrame):
+        ts.loc[:, self.x_columns] = self.scaler_features.transform(ts.loc[:, self.x_columns])
+        ts.loc[:, self.y_column] = self.scaler_count.transform(ts.loc[:, self.y_column])
+
     def prepare_data(self, stage=None):
 
-        y_column, x_columns, ts, useless_rows = load_csv_data_with_features(args.training_data_path)
+        _, _, ts, _ = load_csv_data_with_features(self.data_path)
+        # TODO: refactor util method to customize
 
-        ts = ts.iloc[useless_rows:]
+        ts = ts.iloc[self.useless_rows:]
 
         train_len, val_len = int(ts.shape[0] * 0.8), int(ts.shape[0] * 0.1)
         train_ts, validation_ts, test_ts = ts.iloc[:train_len], ts.iloc[train_len:train_len+val_len], ts.iloc[train_len+val_len:]
 
-        X_train = train_ts[x_columns].to_numpy()
-        y_train = train_ts[y_column].to_numpy()
+        self.fit_scaler_to_data(train_ts)
+        self.scale_data(train_ts)
+        self.scale_data(validation_ts)
+        self.scale_data(test_ts)
 
-        X_val = validation_ts[x_columns].to_numpy()
-        y_val = validation_ts[y_column].to_numpy()
+        X_train = train_ts[self.x_columns].to_numpy()
+        y_train = train_ts[self.y_column].to_numpy()
 
-        X_test = test_ts[x_columns].to_numpy()
-        y_test = test_ts[y_column].to_numpy()
+        X_val = validation_ts[self.x_columns].to_numpy()
+        y_val = validation_ts[self.y_column].to_numpy()
 
-        preprocessing = MinMaxScaler()
-        preprocessing.fit(X_train)
+        X_test = test_ts[self.x_columns].to_numpy()
+        y_test = test_ts[self.y_column].to_numpy()
 
-        X_train = preprocessing.transform(X_train)
         y_train = y_train.reshape((-1, 1))
-        X_val = preprocessing.transform(X_val)
         y_val = y_val.reshape((-1, 1))
-        X_test = preprocessing.transform(X_test)
         y_test = y_test.reshape((-1, 1))
 
         training_dataset = TimeseriesDataset(X_train, y_train, seq_len=self.seq_len)
@@ -156,15 +156,60 @@ class StudentCountPredictor(pl.LightningModule):
     def test_dataloader(self):
         return DataLoader(self.dataset["test"], batch_size=self.batch_size)
 
+    def predict_single(self, sequence: torch.Tensor) -> float:
+        count = self(sequence)
+        return count.item()
+
+    def predict(self, ts: pd.DataFrame) -> numpy.ndarray:
+        self.scale_data(ts)
+
+        predictions = []
+
+        # first seq_len + 1 counts are still known
+        for i in range(self.seq_len+1):
+            predictions.append(ts[self.y_column].iloc[i].values[0])
+
+        last_count = ts[self.y_column].iloc[self.seq_len].values[0]
+
+        # window starts at second count because first always has NaN data
+        for i in range(self.useless_rows, len(ts.index)-self.seq_len):
+
+            # update last count
+            ts["last_count"][i+self.seq_len-1] = last_count
+
+            # get sequence and convert to tensor
+            X_sequence = ts[self.x_columns][i:i+self.seq_len].to_numpy()
+            X_sequence = torch.tensor(X_sequence).float()
+            X_sequence = torch.unsqueeze(X_sequence, 0)
+
+            last_count = self.predict_single(X_sequence)
+            predictions.append(last_count)
+
+
+        predictions = self.scaler_count.inverse_transform(numpy.asarray(predictions).reshape(-1,1))
+        predictions = numpy.round(predictions).astype(int).reshape(-1)
+        return predictions
+
+
+    def plot_after_train(self):
+        _, _, ts, _ = load_csv_data_with_features(self.data_path)
+        all_target = ts[self.y_column]
+        all_pred = pd.Series(self.predict(ts), index=all_target.index, name="predicted_count")
+        all_target.index.freq = None
+        all_pred.index.freq = None
+        all_target.plot(legend=True)
+        all_pred.plot(legend=True, linestyle='dotted')
+        plt.show()
+
+
 def train(args: argparse.Namespace):
     print("GPU available: " + str(torch.cuda.is_available()))
 
     N_EPOCHS = 10
-    early_stopping_callback = EarlyStopping(monitor="val_loss", patience=2)
 
     checkpoint_callback = ModelCheckpoint(
-        dirpath="checkpoints",
-        filename="model.lstm",
+        dirpath=args.model_directory,
+        filename=args.model_name,
         save_top_k=1,
         verbose=True,
         monitor="val_loss",
@@ -172,40 +217,40 @@ def train(args: argparse.Namespace):
     )
     logger = TensorBoardLogger("tensorboard_logs", name="count-students")
 
-    model = LSTM()
-    model_fit = StudentCountPredictor(model)
+    model = StudentCountPredictor(args.training_data_path)
 
     trainer = pl.Trainer(
         logger=logger,
-        checkpoint_callback=False,
-        #callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback],
         max_epochs=N_EPOCHS,
-        gpus=0,
         progress_bar_refresh_rate=30
     )
-    trainer.fit(model_fit)
-    trainer.test(model_fit)
 
-    with open(args.model_path, "wb") as f:
-        pickle.dump(model_fit, f)
+    trainer.fit(model)
 
+    if args.plot_fitted_model:
+        model.plot_after_train()
 
+    trainer.test(model)
 
-    # if args.plot_fitted_model:
-    #     y_column, x_columns, ts, useless_rows = load_csv_data_with_features(args.training_data_path)
-    #     ts = ts.iloc[useless_rows:]
-    #     all_target = ts[y_column]
-    #     all_pred = pd.Series(model_fit.predict(ts[x_columns]), index=all_target.index, name="predicted_mean")
-    #     all_target.index.freq = None
-    #     all_pred.index.freq = None
-    #     all_target.plot(legend=True)
-    #     all_pred.plot(legend=True)
-    #     plt.show()
+    end_model_path = os.path.join(args.model_directory, args.model_name)
+
+    torch.save(model, end_model_path)
 
 
 
 def predict(args: argparse.Namespace):
-    pass
+    _, _, ts, _ = load_csv_data_with_features(args.pred_data_path)
+    model : StudentCountPredictor = torch.load(args.model_path)
+    model.eval()
+
+    predictions = model.predict(ts)
+
+    all_pred = pd.Series(predictions, index=ts.index, name="predicted_count")
+    all_pred.index.freq = None
+    all_pred.plot(legend=True, linestyle='dotted')
+    plt.show()
+
 
 
 if __name__ == "__main__":
@@ -226,10 +271,16 @@ if __name__ == "__main__":
         help="URL to the database storage for the optuna study.",
     )
     train_parser.add_argument(
-        "--model-path",
+        "--model-name",
         type=str,
-        default=os.path.join("checkpoints", "model.lstm"),
-        help="Path for the new model to be saved.",
+        default="lstm-model",
+        help="Name of the new model to be saved.",
+    )
+    train_parser.add_argument(
+        "--model-directory",
+        type=str,
+        default="checkpoints",
+        help="(Relative) directory of the model that will be saved.",
     )
     train_parser.add_argument(
         "--plot-fitted-model", action="store_true", help="Optional flag for plotting the fitted model predictions."
@@ -246,7 +297,7 @@ if __name__ == "__main__":
     pred_parser.add_argument(
         "--model-path",
         type=str,
-        default=os.path.join("checkpoints", "model.lstm"),
+        default=os.path.join("checkpoints", "model.ckpt"),
         help="Path for the model to be loaded.",
     )
     pred_parser.set_defaults(func=predict)
@@ -255,4 +306,3 @@ if __name__ == "__main__":
 
     parser.add_argument('--gpus', default=None)
     args.func(args)
-    #train(args)

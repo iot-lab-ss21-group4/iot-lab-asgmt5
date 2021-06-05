@@ -29,10 +29,12 @@ def load_csv_data(path: str) -> Tuple[List[str], pd.DataFrame]:
     ts: pd.DataFrame = pd.read_csv(path, skip_blank_lines=False)
     ts.drop_duplicates(subset=TIME_COLUMN, inplace=True)
     ts = index_from_time_column(ts)
+    ts["minute_of_hour"] = ts.index.minute.to_series(index=ts.index).astype(DEFAULT_FLOAT_TYPE)
     ts["hour_of_day"] = ts.index.hour.to_series(index=ts.index).astype(DEFAULT_FLOAT_TYPE)
+    ts["minute_of_day"] = ts["minute_of_hour"] + ts["hour_of_day"] * 60
     ts["day_of_week"] = ts.index.dayofweek.to_series(index=ts.index).astype(DEFAULT_FLOAT_TYPE)
     ts["month_of_year"] = ts.index.month.to_series(index=ts.index).astype(DEFAULT_FLOAT_TYPE)
-    return ["hour_of_day", "day_of_week", "month_of_year"], ts
+    return ["minute_of_hour", "hour_of_day", "minute_of_day", "day_of_week", "month_of_year"], ts
 
 
 def extract_features(ts: pd.DataFrame, lag_order: int = 2) -> Tuple[List[str], pd.DataFrame, int]:
@@ -62,6 +64,12 @@ def extract_features(ts: pd.DataFrame, lag_order: int = 2) -> Tuple[List[str], p
         ts[TIME_COLUMN].shift(1) - ts[TIME_COLUMN].shift(2)
     ).astype(DEFAULT_FLOAT_TYPE)
     cols_added.append(DERIVATIVE_COLUMN)
+
+    # Extract last count
+    LAST_COUNT_COLUMN = "last_count"
+    ts[LAST_COUNT_COLUMN] = ts[UNIVARIATE_DATA_COLUMN].shift(1).astype(DEFAULT_FLOAT_TYPE)
+    cols_added.append(LAST_COUNT_COLUMN)
+
     return cols_added, ts, max(lag_order, 2)
 
 
