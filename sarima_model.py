@@ -5,6 +5,7 @@ import threading
 from typing import Optional
 
 import matplotlib.pyplot as plt
+import numpy as np
 import optuna
 import pandas as pd
 from sklearn.metrics import mean_squared_error
@@ -12,16 +13,15 @@ from statsmodels.base.wrapper import ResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResultsWrapper
 
 from utils import load_data, regularize_data
-from utils.data import DEFAULT_FLOAT_TYPE, TIME_COLUMN, UNIVARIATE_DATA_COLUMN
+from utils.data import DEFAULT_FLOAT_TYPE, TIME_COLUMN
 
 EXTRA_INFO_FILE_POSTFIX = ".info"
 
 
 def train(args: argparse.Namespace) -> SARIMAXResultsWrapper:
-    y_column = UNIVARIATE_DATA_COLUMN
-    exog_columns, ts = load_data(args.training_data_path, args.is_data_csv)
+    y_column, exog_columns, ts = load_data(args.training_data_path, args.is_data_csv, detailed_seasonality=False)
     ts[y_column] = ts[y_column].astype(DEFAULT_FLOAT_TYPE)
-    freq, ts = regularize_data(ts)
+    freq, ts = regularize_data(ts, y_column)
     # Remove constant columns
     constant_columns = ~((ts != ts.iloc[0]).any())
     exog_columns_set = set(exog_columns)
@@ -38,7 +38,7 @@ def train(args: argparse.Namespace) -> SARIMAXResultsWrapper:
             (
                 freq,
                 train_ts.loc[train_ts.index[-1], TIME_COLUMN],
-                train_ts.loc[train_ts.index[-1], UNIVARIATE_DATA_COLUMN],
+                train_ts.loc[train_ts.index[-1], y_column],
                 exog_columns,
             ),
             f,
@@ -93,12 +93,12 @@ def train(args: argparse.Namespace) -> SARIMAXResultsWrapper:
 
 
 def prepare_pred_input(pred_time: int, pred_data_path: str):
-    # TODO: implement this.
-    pass
+    pred_data = pd.Series([pred_time], dtype=np.int, name=TIME_COLUMN)
+    pred_data.to_csv(pred_data_path, index=False)
 
 
 def predict(args: argparse.Namespace, model_fit: Optional[SARIMAXResultsWrapper] = None) -> str:
-    _, ts = load_data(args.pred_data_path)
+    y_column, _, ts = load_data(args.pred_data_path, detailed_seasonality=False)
     # TODO: use freq and last_t to forecast beyond the last datapoint and
     # use interpolation to predict exactly at the datapoint times.
     with open(args.model_path + EXTRA_INFO_FILE_POSTFIX, "rb") as f:
@@ -107,7 +107,7 @@ def predict(args: argparse.Namespace, model_fit: Optional[SARIMAXResultsWrapper]
     if model_fit is None:
         model_fit = ResultsWrapper.load(args.model_path)
     pred: pd.Series = model_fit.forecast(ts.shape[0], exog=ts[exog_columns])
-    pred.rename(UNIVARIATE_DATA_COLUMN).round().to_csv(args.pred_out_path, index=False)
+    pred.rename(y_column).round().to_csv(args.pred_out_path, index=False)
     return args.pred_out_path
 
 
@@ -128,7 +128,6 @@ def add_arguments(parser: argparse.ArgumentParser):
     )
     train_parser.add_argument(
         "--is-data-csv",
-        type=bool,
         action="store_true",
         help="Optional flag for telling if the data file is '.csv'. Otherwise it is assumed to be '.db' (sqlite).",
     )
@@ -136,7 +135,6 @@ def add_arguments(parser: argparse.ArgumentParser):
     train_parser.add_argument(
         "--storage-url",
         type=str,
-        default="sqlite:///hyperparams/params.db",
         help="URL to the database storage for the optuna study.",
     )
     train_parser.add_argument(
@@ -182,7 +180,6 @@ def add_arguments(parser: argparse.ArgumentParser):
     )
     periodic_forecast_parser.add_argument(
         "--is-data-csv",
-        type=bool,
         action="store_true",
         help="Optional flag for telling if the data file is '.csv'. Otherwise it is assumed to be '.db' (sqlite).",
     )
@@ -192,7 +189,6 @@ def add_arguments(parser: argparse.ArgumentParser):
     periodic_forecast_parser.add_argument(
         "--storage-url",
         type=str,
-        default="sqlite:///hyperparams/params.db",
         help="URL to the database storage for the optuna study.",
     )
     periodic_forecast_parser.add_argument(

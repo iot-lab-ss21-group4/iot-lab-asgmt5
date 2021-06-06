@@ -342,7 +342,6 @@ def add_arguments(parser: argparse.ArgumentParser):
     # train_parser.add_argument(
     #     "--storage-url",
     #     type=str,
-    #     default="sqlite:///hyperparams/lstm_params.db",
     #     help="URL to the database storage for the optuna study.",
     # )
     # train_parser.add_argument(
@@ -415,7 +414,6 @@ def add_arguments(parser: argparse.ArgumentParser):
     periodic_forecast_parser.add_argument(
         "--storage-url",
         type=str,
-        default="sqlite:///hyperparams/params.db",
         help="URL to the database storage for the optuna study.",
     )
     periodic_forecast_parser.add_argument(
