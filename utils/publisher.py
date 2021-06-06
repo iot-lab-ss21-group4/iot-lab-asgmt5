@@ -51,7 +51,7 @@ def on_publish(client: mqtt.Client, userdata: Dict[str, Any], rc: int):
     print("Data published")
 
 
-def start_publisher() -> Publisher:
+def setup_publisher() -> (Publisher, threading.Thread):
     client = mqtt.Client()
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
@@ -68,7 +68,6 @@ def start_publisher() -> Publisher:
     client.username_pw_set(IOT_PLATFORM_GATEWAY_USERNAME, IOT_PLATFORM_GATEWAY_PASSWORD)
     client.connect(IOT_PLATFORM_GATEWAY_IP, port=IOT_PLATFORM_GATEWAY_PORT)
 
-    thread = threading.Thread(target=client.loop_forever)
-    thread.start()
+    mqtt_client = threading.Thread(target=client.loop_forever)
 
-    return publisher
+    return publisher, mqtt_client

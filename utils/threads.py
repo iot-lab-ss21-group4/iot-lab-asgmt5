@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import pandas as pd
 
-from utils.publisher import Publisher, start_publisher
+from utils.publisher import Publisher, setup_publisher
 
 
 class DataPullerThread(threading.Thread):
@@ -169,9 +169,9 @@ def start_periodic_forecast(
         forecast_period,
         forecast_dt,
     )
-    publisher = start_publisher()
+    publisher, mqtt_client = setup_publisher()
     forecast_publisher = ForecastPublisherThread(periodic_forecaster_out_q, publisher)
-    other_threads: List[threading.Thread] = [data_puller, model_trainer, periodic_forecaster]
+    other_threads: List[threading.Thread] = [data_puller, model_trainer, periodic_forecaster, mqtt_client]
     for thread in other_threads:
         thread.start()
     forecast_publisher.run()
