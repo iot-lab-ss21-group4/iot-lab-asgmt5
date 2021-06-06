@@ -35,7 +35,7 @@ class TimeseriesDataset(Dataset):
 
 class StudentCountPredictor(pl.LightningModule):
 
-    x_columns = ["last_count", DT_COLUMN, "minute_of_day", "day_of_week", "month_of_year"]
+    x_columns = ["lag1_count", DT_COLUMN, "minute_of_day", "day_of_week", "month_of_year"]
     y_column = [UNIVARIATE_DATA_COLUMN]
     useless_rows = 1
 
