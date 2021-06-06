@@ -9,7 +9,7 @@ import optuna
 import pandas as pd
 from sklearn.linear_model import Lasso
 
-from utils import load_data_with_features
+from utils import load_data_with_features, start_periodic_forecast
 from utils.data import DERIVATIVE_COLUMN, LAG_FEATURE_TEMPLATE, LAG_ORDER, TIME_COLUMN
 
 
@@ -99,8 +99,37 @@ def predict(args: argparse.Namespace, model_fit: Optional[Lasso] = None) -> str:
 
 
 def periodic_forecast(args: argparse.Namespace):
-    # TODO: implement this.
-    pass
+    train_period = 86400
+    forecast_period = 150
+    forecast_dt = 300
+    start_periodic_forecast(
+        args.training_data_path,
+        train,
+        {
+            "training_data_path": args.training_data_path,
+            "is_data_csv": args.is_data_csv,
+            "study_name": args.study_name,
+            "storage_url": args.storage_url,
+            "model_path": args.model_path,
+            "plot_fitted_model": False,
+        },
+        prepare_pred_input,
+        {
+            "forecast_period": forecast_period,
+            "pred_data_path": args.pred_data_path,
+            "training_dataset_path": args.training_dataset_path,
+        },
+        predict,
+        {
+            "pred_data_path": args.pred_data_path,
+            "model_path": args.model_path,
+            "pred_out_path": args.pred_out_path,
+            "is_data_csv": args.is_data_csv,
+        },
+        train_period=train_period,
+        forecast_period=forecast_period,
+        forecast_dt=forecast_dt,
+    )
 
 
 def add_arguments(parser: argparse.ArgumentParser):

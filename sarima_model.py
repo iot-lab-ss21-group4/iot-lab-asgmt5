@@ -12,7 +12,7 @@ from sklearn.metrics import mean_squared_error
 from statsmodels.base.wrapper import ResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResultsWrapper
 
-from utils import load_data, regularize_data
+from utils import load_data, regularize_data, start_periodic_forecast
 from utils.data import DEFAULT_FLOAT_TYPE, TIME_COLUMN
 
 EXTRA_INFO_FILE_POSTFIX = ".info"
@@ -112,8 +112,32 @@ def predict(args: argparse.Namespace, model_fit: Optional[SARIMAXResultsWrapper]
 
 
 def periodic_forecast(args: argparse.Namespace):
-    # TODO: implement this.
-    pass
+    train_period = 86400
+    forecast_period = 150
+    forecast_dt = 300
+    start_periodic_forecast(
+        args.training_data_path,
+        train,
+        {
+            "training_data_path": args.training_data_path,
+            "is_data_csv": args.is_data_csv,
+            "study_name": args.study_name,
+            "storage_url": args.storage_url,
+            "model_path": args.model_path,
+            "plot_fitted_model": False,
+        },
+        prepare_pred_input,
+        {"pred_data_path": args.pred_data_path},
+        predict,
+        {
+            "pred_data_path": args.pred_data_path,
+            "model_path": args.model_path,
+            "pred_out_path": args.pred_out_path,
+        },
+        train_period=train_period,
+        forecast_period=forecast_period,
+        forecast_dt=forecast_dt,
+    )
 
 
 def add_arguments(parser: argparse.ArgumentParser):

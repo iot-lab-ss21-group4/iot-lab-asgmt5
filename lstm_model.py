@@ -287,7 +287,7 @@ def train(args: argparse.Namespace):
         train_standard(args)
 
 
-def prepare_pred_input(pred_time: int, pred_data_path: str, dataset_path: str):
+def prepare_pred_input(pred_time: int, pred_data_path: str, training_dataset_path: str, is_data_csv: bool):
     # TODO: implement this.
     pass
 

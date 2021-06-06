@@ -2,7 +2,7 @@ import argparse
 import queue
 import threading
 import time
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import pandas as pd
 
@@ -16,7 +16,9 @@ class DataPullerThread(threading.Thread):
     def run(self):
         # TODO: implement data pulling from the Elasticsearch backend.
         # Then, notify the model training thread about the new data.
-        pass
+        while True:
+            self.event_out_q.put(None)
+            time.sleep(600)
 
 
 class ModelTrainerThread(threading.Thread):
@@ -37,7 +39,6 @@ class ModelTrainerThread(threading.Thread):
         self.event_in_q = event_in_q
         self.event_out_q = event_out_q
         self.train_period = train_period
-        self.train_fn_kwargs["plot_fitted_model"] = False
 
         self._condition_q = queue.Queue()
         threading.Thread(target=self._check_data_pull_events).start()
@@ -136,3 +137,39 @@ class ForecastPublisherThread(threading.Thread):
         while True:
             t, y = self.event_in_q.get()
             print("Time: {}, Forecast: {}".format(t, y))
+
+
+def start_periodic_forecast(
+    dataset_path: str,
+    train_fn: Callable[[argparse.Namespace], Any],
+    train_fn_kwargs: Dict[str, Any],
+    pred_input_prepare_fn: Callable[..., None],
+    pred_input_prepare_fn_kwargs: Dict[str, Any],
+    pred_fn: Callable[[argparse.Namespace, Optional[Any]], str],
+    pred_fn_kwargs: Dict[str, Any],
+    train_period: int = 86400,
+    forecast_period: int = 150,
+    forecast_dt: int = 300,
+):
+    data_puller_out_q = queue.Queue()
+    model_trainer_out_q = queue.Queue()
+    periodic_forecaster_out_q = queue.Queue()
+    data_puller = DataPullerThread(dataset_path, data_puller_out_q)
+    model_trainer = ModelTrainerThread(train_fn, train_fn_kwargs, data_puller_out_q, model_trainer_out_q, train_period)
+    periodic_forecaster = PeriodicForecasterThread(
+        pred_input_prepare_fn,
+        pred_input_prepare_fn_kwargs,
+        pred_fn,
+        pred_fn_kwargs,
+        model_trainer_out_q,
+        periodic_forecaster_out_q,
+        forecast_period,
+        forecast_dt,
+    )
+    forecast_publisher = ForecastPublisherThread(periodic_forecaster_out_q)
+    other_threads: List[threading.Thread] = [data_puller, model_trainer, periodic_forecaster]
+    for thread in other_threads:
+        thread.start()
+    forecast_publisher.run()
+    for thread in other_threads:
+        thread.join()
