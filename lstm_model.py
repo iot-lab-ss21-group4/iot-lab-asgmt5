@@ -440,6 +440,12 @@ def add_arguments(parser: argparse.ArgumentParser):
         default=os.path.join("datasets", "real_pred_sarimax_out.csv"),
         help="Path to the '.csv' file to write the prediction.",
     )
+    periodic_forecast_parser.add_argument(
+        "--iot-platform-settings-path",
+        type=str,
+        default=os.path.join("settings", "device_lstm.json"),
+        help="Path to the settings file for building connection to IoT Platform.",
+    )
     # TODO: add more arguments for pulling data from Elasticsearch backend
     # and for publishing to the IoT platform using MQTT.
     periodic_forecast_parser.set_defaults(func=periodic_forecast)

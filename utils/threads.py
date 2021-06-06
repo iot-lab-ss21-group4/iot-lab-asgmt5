@@ -150,6 +150,7 @@ def start_periodic_forecast(
     pred_input_prepare_fn_kwargs: Dict[str, Any],
     pred_fn: Callable[[argparse.Namespace, Optional[Any]], str],
     pred_fn_kwargs: Dict[str, Any],
+    iot_platform_settings_path: str,
     train_period: int = 86400,
     forecast_period: int = 150,
     forecast_dt: int = 300,
@@ -169,7 +170,7 @@ def start_periodic_forecast(
         forecast_period,
         forecast_dt,
     )
-    publisher, mqtt_client = setup_publisher()
+    publisher, mqtt_client = setup_publisher(iot_platform_settings_path)
     forecast_publisher = ForecastPublisherThread(periodic_forecaster_out_q, publisher)
     other_threads: List[threading.Thread] = [data_puller, model_trainer, periodic_forecaster, mqtt_client]
     for thread in other_threads:

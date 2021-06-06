@@ -134,6 +134,7 @@ def periodic_forecast(args: argparse.Namespace):
             "model_path": args.model_path,
             "pred_out_path": args.pred_out_path,
         },
+        args.iot_platform_settings_path,
         train_period=train_period,
         forecast_period=forecast_period,
         forecast_dt=forecast_dt,
@@ -232,6 +233,12 @@ def add_arguments(parser: argparse.ArgumentParser):
         type=str,
         default=os.path.join("datasets", "real_pred_sarimax_out.csv"),
         help="Path to the '.csv' file to write the prediction.",
+    )
+    periodic_forecast_parser.add_argument(
+        "--iot-platform-settings-path",
+        type=str,
+        default=os.path.join("settings", "device_sarima.json"),
+        help="Path to the settings file for building connection to IoT Platform.",
     )
     # TODO: add more arguments for pulling data from Elasticsearch backend
     # and for publishing to the IoT platform using MQTT.

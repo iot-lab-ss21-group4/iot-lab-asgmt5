@@ -1,19 +1,22 @@
-import argparse
-import queue
+import json
 import threading
 
 import paho.mqtt.client as mqtt
 from typing import Any, Dict
 
+class IotPlattformSettings():
 
-IOT_PLATFORM_GATEWAY_USERNAME = "JWT"
-IOT_PLATFORM_GATEWAY_IP = "131.159.35.132"
-IOT_PLATFORM_GATEWAY_PORT = 1883
-IOT_PLATFORM_GROUP_NAME = "group4_2021_ss"
-IOT_PLATFORM_SENSOR_NAME = "forecast"
-IOT_PLATFORM_USER_ID = 48
-IOT_PLATFORM_DEVICE_ID = 135
-IOT_PLATFORM_GATEWAY_PASSWORD = ""
+    def __init__(self, config_file):
+        with open(config_file) as f:
+            data = json.load(f)
+        self.iot_platform_gateway_username = data["iot_platform_gateway_username"]
+        self.iot_platform_gateway_ip = data["iot_platform_gateway_ip"]
+        self.iot_platform_gateway_port = data["iot_platform_gateway_port"]
+        self.iot_platform_group_name = data["iot_platform_group_name"]
+        self.iot_platform_sensor_name = data["iot_platform_sensor_name"]
+        self.iot_platform_user_id = data["iot_platform_user_id"]
+        self.iot_platform_device_id = data["iot_platform_device_id"]
+        self.iot_platform_gateway_password = data["iot_platform_gateway_password"]
 
 
 def iot_platform_config_loader():
@@ -51,22 +54,21 @@ def on_publish(client: mqtt.Client, userdata: Dict[str, Any], rc: int):
     print("Data published")
 
 
-def setup_publisher() -> (Publisher, threading.Thread):
+def setup_publisher(iot_platform_settings_path) -> (Publisher, threading.Thread):
     client = mqtt.Client()
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
 
-    mqtt_topic = str(IOT_PLATFORM_USER_ID) + "_" + str(IOT_PLATFORM_DEVICE_ID)
-
-    publisher = Publisher(client, mqtt_topic, IOT_PLATFORM_GROUP_NAME, IOT_PLATFORM_SENSOR_NAME, IOT_PLATFORM_DEVICE_ID)
-
+    settings = IotPlattformSettings(iot_platform_settings_path)
+    mqtt_topic = str(settings.iot_platform_user_id) + "_" + str(settings.iot_platform_device_id)
+    publisher = Publisher(client, mqtt_topic, settings.iot_platform_group_name, settings.iot_platform_sensor_name, settings.iot_platform_device_id)
     user_data = {
         "is_connected": False,
     }
 
     client.user_data_set(user_data)
-    client.username_pw_set(IOT_PLATFORM_GATEWAY_USERNAME, IOT_PLATFORM_GATEWAY_PASSWORD)
-    client.connect(IOT_PLATFORM_GATEWAY_IP, port=IOT_PLATFORM_GATEWAY_PORT)
+    client.username_pw_set(settings.iot_platform_gateway_username, settings.iot_platform_gateway_password)
+    client.connect(settings.iot_platform_gateway_ip, port=settings.iot_platform_gateway_port)
 
     mqtt_client = threading.Thread(target=client.loop_forever)
 
