@@ -178,22 +178,22 @@ class StudentCountPredictor(pl.LightningModule):
     def predict_single(self, sequence: torch.Tensor) -> float:
         return self(sequence).item()
 
-    def predict(self, ts: pd.DataFrame, update_last_count=True):
+    def predict(self, ts: pd.DataFrame, update_lag1_count=True):
 
         self.scale_data(ts)
 
         # first seq_len + 1 counts are still known
         for i in range(self.useless_rows, self.seq_len + 1):
-            if update_last_count:
-                ts.loc[ts.index[i], "last_count"] = ts.loc[ts.index[i - 1], "count"]
+            if update_lag1_count:
+                ts.loc[ts.index[i], "lag1_count"] = ts.loc[ts.index[i - 1], "count"]
 
         # window starts at second count because first always has NaN data
         for i in range(self.useless_rows, len(ts.index) - self.seq_len):
 
             # update last count
-            if update_last_count:
+            if update_lag1_count:
                 last_count = ts.loc[ts.index[i + self.seq_len - 1], "count"]
-                ts.loc[ts.index[i + self.seq_len], "last_count"] = last_count
+                ts.loc[ts.index[i + self.seq_len], "lag1_count"] = last_count
 
             # get sequence and convert to tensor
             X_sequence = ts.loc[ts.index[i] : ts.index[i + self.seq_len], self.x_columns].to_numpy()
@@ -211,7 +211,7 @@ class StudentCountPredictor(pl.LightningModule):
     def plot_after_train(self):
         _, _, ts, _ = load_data_with_features(self.data_path, self.is_data_csv)
         all_target = ts[self.y_column]
-        self.predict(ts, update_last_count=True)
+        self.predict(ts, update_lag1_count=True)
         all_pred = pd.Series(ts[self.y_column].values.reshape(-1), index=all_target.index, name="predicted_count")
         all_target.index.freq = None
         all_pred.index.freq = None
