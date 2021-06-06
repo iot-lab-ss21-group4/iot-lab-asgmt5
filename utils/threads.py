@@ -6,6 +6,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 import pandas as pd
 
+from utils.publisher import Publisher, start_publisher
+
 
 class DataPullerThread(threading.Thread):
     def __init__(self, dataset_path: str, event_out_q: queue.Queue):
@@ -128,15 +130,16 @@ class PeriodicForecasterThread(threading.Thread):
 
 
 class ForecastPublisherThread(threading.Thread):
-    def __init__(self, event_in_q: queue.Queue):
+    def __init__(self, event_in_q: queue.Queue, publisher: Publisher):
         super().__init__()
         self.event_in_q = event_in_q
+        self.publisher = publisher
 
     def run(self):
-        # TODO: publish incoming forecasted values using MQTT to the IoT platform.
         while True:
             t, y = self.event_in_q.get()
             print("Time: {}, Forecast: {}".format(t, y))
+            self.publisher.publish(t, y)
 
 
 def start_periodic_forecast(
@@ -166,7 +169,8 @@ def start_periodic_forecast(
         forecast_period,
         forecast_dt,
     )
-    forecast_publisher = ForecastPublisherThread(periodic_forecaster_out_q)
+    publisher = start_publisher()
+    forecast_publisher = ForecastPublisherThread(periodic_forecaster_out_q, publisher)
     other_threads: List[threading.Thread] = [data_puller, model_trainer, periodic_forecaster]
     for thread in other_threads:
         thread.start()

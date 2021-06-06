@@ -10,3 +10,4 @@ pytorch-lightning
 ray[default]
 ray[tune]
 black
+paho-mqtt

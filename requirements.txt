@@ -148,6 +148,8 @@ packaging==20.9
     #   optuna
     #   pytorch-lightning
     #   torchmetrics
+paho-mqtt==1.5.1
+    # via -r requirements.in
 pandas==1.2.4
     # via
     #   -r requirements.in
