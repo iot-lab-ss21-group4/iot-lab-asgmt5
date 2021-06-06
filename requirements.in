@@ -4,6 +4,9 @@ optuna
 numpy
 sklearn
 scipy
-torch
 matplotlib
+torch
 pytorch-lightning
+ray[default]
+ray[tune]
+black

@@ -6,16 +6,32 @@
 #
 absl-py==0.12.0
     # via tensorboard
+aiohttp-cors==0.7.0
+    # via ray
 aiohttp==3.7.4.post0
-    # via fsspec
+    # via
+    #   aiohttp-cors
+    #   fsspec
+    #   ray
+aioredis==1.3.1
+    # via ray
 alembic==1.6.3
     # via optuna
+appdirs==1.4.4
+    # via black
 async-timeout==3.0.1
-    # via aiohttp
+    # via
+    #   aiohttp
+    #   aioredis
 attrs==21.2.0
     # via
     #   aiohttp
     #   cmd2
+    #   jsonschema
+black==21.5b2
+    # via -r requirements.in
+blessings==1.7
+    # via gpustat
 cachetools==4.2.2
     # via google-auth
 certifi==2020.12.5
@@ -24,6 +40,10 @@ chardet==4.0.0
     # via
     #   aiohttp
     #   requests
+click==8.0.1
+    # via
+    #   black
+    #   ray
 cliff==3.7.0
     # via optuna
 cmaes==0.8.2
@@ -32,32 +52,52 @@ cmd2==1.5.0
     # via cliff
 colorama==0.4.4
     # via
+    #   click
     #   cmd2
+    #   colorful
     #   colorlog
+    #   ray
+colorful==0.5.4
+    # via ray
 colorlog==5.0.1
     # via optuna
 cycler==0.10.0
     # via matplotlib
+filelock==3.0.12
+    # via ray
 fsspec[http]==2021.5.0
     # via pytorch-lightning
 future==0.18.2
     # via pytorch-lightning
+google-api-core==1.29.0
+    # via opencensus
 google-auth-oauthlib==0.4.4
     # via tensorboard
 google-auth==1.30.1
     # via
+    #   google-api-core
     #   google-auth-oauthlib
     #   tensorboard
+googleapis-common-protos==1.53.0
+    # via google-api-core
+gpustat==0.6.0
+    # via ray
 greenlet==1.1.0
     # via sqlalchemy
 grpcio==1.38.0
-    # via tensorboard
+    # via
+    #   ray
+    #   tensorboard
+hiredis==2.0.0
+    # via aioredis
 idna==2.10
     # via
     #   requests
     #   yarl
 joblib==1.0.1
     # via scikit-learn
+jsonschema==3.2.0
+    # via ray
 kiwisolver==1.3.1
     # via matplotlib
 mako==1.1.4
@@ -68,10 +108,14 @@ markupsafe==2.0.1
     # via mako
 matplotlib==3.4.2
     # via -r requirements.in
+msgpack==1.0.2
+    # via ray
 multidict==5.1.0
     # via
     #   aiohttp
     #   yarl
+mypy-extensions==0.4.3
+    # via black
 numpy==1.20.3
     # via
     #   -r requirements.in
@@ -81,24 +125,36 @@ numpy==1.20.3
     #   pandas
     #   patsy
     #   pytorch-lightning
+    #   ray
     #   scikit-learn
     #   scipy
     #   statsmodels
     #   tensorboard
+    #   tensorboardx
     #   torch
+nvidia-ml-py3==7.352.0
+    # via gpustat
 oauthlib==3.1.0
     # via requests-oauthlib
+opencensus-context==0.1.2
+    # via opencensus
+opencensus==0.7.13
+    # via ray
 optuna==2.7.0
     # via -r requirements.in
 packaging==20.9
     # via
+    #   google-api-core
     #   optuna
     #   pytorch-lightning
     #   torchmetrics
 pandas==1.2.4
     # via
     #   -r requirements.in
+    #   ray
     #   statsmodels
+pathspec==0.8.1
+    # via black
 patsy==0.5.1
     # via statsmodels
 pbr==5.6.0
@@ -109,8 +165,19 @@ pillow==8.2.0
     # via matplotlib
 prettytable==2.1.0
     # via cliff
+prometheus-client==0.11.0
+    # via ray
 protobuf==3.17.1
-    # via tensorboard
+    # via
+    #   google-api-core
+    #   googleapis-common-protos
+    #   ray
+    #   tensorboard
+    #   tensorboardx
+psutil==5.8.0
+    # via gpustat
+py-spy==0.3.7
+    # via ray
 pyasn1-modules==0.2.8
     # via google-auth
 pyasn1==0.4.8
@@ -128,6 +195,8 @@ pyperclip==1.8.2
     # via cmd2
 pyreadline3==3.3
     # via cmd2
+pyrsistent==0.17.3
+    # via jsonschema
 python-dateutil==2.8.1
     # via
     #   alembic
@@ -138,16 +207,27 @@ python-editor==1.0.4
 pytorch-lightning==1.3.3
     # via -r requirements.in
 pytz==2021.1
-    # via pandas
+    # via
+    #   google-api-core
+    #   pandas
 pyyaml==5.4.1
     # via
     #   cliff
     #   pytorch-lightning
+    #   ray
+ray[default,tune]==1.3.0
+    # via -r requirements.in
+redis==3.5.3
+    # via ray
+regex==2021.4.4
+    # via black
 requests-oauthlib==1.3.0
     # via google-auth-oauthlib
 requests==2.25.1
     # via
     #   fsspec
+    #   google-api-core
+    #   ray
     #   requests-oauthlib
     #   tensorboard
 rsa==4.7.2
@@ -163,9 +243,13 @@ scipy==1.6.3
 six==1.16.0
     # via
     #   absl-py
+    #   blessings
     #   cycler
+    #   google-api-core
     #   google-auth
+    #   gpustat
     #   grpcio
+    #   jsonschema
     #   patsy
     #   protobuf
     #   python-dateutil
@@ -180,12 +264,18 @@ statsmodels==0.12.2
     # via -r requirements.in
 stevedore==3.3.0
     # via cliff
+tabulate==0.8.9
+    # via ray
 tensorboard-plugin-wit==1.8.0
     # via tensorboard
 tensorboard==2.4.1
     # via pytorch-lightning
+tensorboardx==2.2
+    # via ray
 threadpoolctl==2.1.0
     # via scikit-learn
+toml==0.10.2
+    # via black
 torch==1.8.1
     # via
     #   -r requirements.in
