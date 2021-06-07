@@ -1,5 +1,5 @@
 {
-  "iot_platform_gateway_username" : "jwt",
+  "iot_platform_gateway_username" : "JWT",
   "iot_platform_gateway_ip" : "131.159.35.132",
   "iot_platform_gateway_port" : 1883,
   "iot_platform_group_name" : "group4_2021_ss",

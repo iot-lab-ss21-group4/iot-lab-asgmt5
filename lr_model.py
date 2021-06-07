@@ -117,7 +117,8 @@ def periodic_forecast(args: argparse.Namespace):
         {
             "forecast_period": forecast_period,
             "pred_data_path": args.pred_data_path,
-            "training_dataset_path": args.training_dataset_path,
+            "training_dataset_path": args.training_data_path,
+            "is_data_csv": args.is_data_csv,
         },
         predict,
         {
@@ -213,19 +214,19 @@ def add_arguments(parser: argparse.ArgumentParser):
     periodic_forecast_parser.add_argument(
         "--model-path",
         type=str,
-        default=os.path.join("checkpoints", "model.sarimax"),
+        default=os.path.join("checkpoints", "model.lr"),
         help="Path for the new model to be saved.",
     )
     periodic_forecast_parser.add_argument(
         "--pred-data-path",
         type=str,
-        default=os.path.join("datasets", "real_pred_sarimax.csv"),
+        default=os.path.join("datasets", "real_pred_lr.csv"),
         help="Path to the '.csv' file to be used for prediction.",
     )
     periodic_forecast_parser.add_argument(
         "--pred-out-path",
         type=str,
-        default=os.path.join("datasets", "real_pred_sarimax_out.csv"),
+        default=os.path.join("datasets", "real_pred_lr_out.csv"),
         help="Path to the '.csv' file to write the prediction.",
     )
     periodic_forecast_parser.add_argument(

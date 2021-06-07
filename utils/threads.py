@@ -138,7 +138,8 @@ class ForecastPublisherThread(threading.Thread):
     def run(self):
         while True:
             t, y = self.event_in_q.get()
-            print("Time: {}, Forecast: {}".format(t, y))
+            # msec timestamps
+            t = t * 1000
             self.publisher.publish(t, y)
 
 
