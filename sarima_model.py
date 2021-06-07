@@ -237,7 +237,7 @@ def add_arguments(parser: argparse.ArgumentParser):
     periodic_forecast_parser.add_argument(
         "--iot-platform-settings-path",
         type=str,
-        default=os.path.join("settings", "device_sarima.json"),
+        default=os.path.join("settings", "device_sarimax.json"),
         help="Path to the settings file for building connection to IoT Platform.",
     )
     # TODO: add more arguments for pulling data from Elasticsearch backend
