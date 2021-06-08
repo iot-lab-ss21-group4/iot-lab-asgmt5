@@ -13,7 +13,7 @@ DT_COLUMN = "dT"
 DERIVATIVE_COLUMN = "d_{}/dT".format(UNIVARIATE_DATA_COLUMN)
 LAG_FEATURE_TEMPLATE = "lag{}_" + UNIVARIATE_DATA_COLUMN
 # Lag order must be >= 1.
-LAG_ORDER = 2
+DEFAULT_LAG_ORDER = 2
 
 
 def index_from_time_column(ts: pd.DataFrame, freq: Optional[pd.Timedelta] = None) -> pd.DataFrame:
@@ -26,7 +26,7 @@ def index_from_time_column(ts: pd.DataFrame, freq: Optional[pd.Timedelta] = None
     return ts
 
 
-def load_data(path: str, is_csv: bool = True, detailed_seasonality: bool = True) -> Tuple[str, List[str], pd.DataFrame]:
+def load_data(path: str, is_csv: bool = True) -> Tuple[str, pd.DataFrame]:
     if is_csv:
         ts: pd.DataFrame = pd.read_csv(path, skip_blank_lines=False)
     else:
@@ -34,23 +34,25 @@ def load_data(path: str, is_csv: bool = True, detailed_seasonality: bool = True)
         ts: pd.DataFrame = pd.read_sql_query("SELECT * FROM data", con)
         con.close()
     ts.drop_duplicates(subset=TIME_COLUMN, inplace=True)
-    ts = index_from_time_column(ts)
-    ts["hour_of_day"] = ts.index.hour.to_series(index=ts.index).astype(DEFAULT_FLOAT_TYPE)
-    ts["day_of_week"] = ts.index.dayofweek.to_series(index=ts.index).astype(DEFAULT_FLOAT_TYPE)
-    ts["month_of_year"] = ts.index.month.to_series(index=ts.index).astype(DEFAULT_FLOAT_TYPE)
-    extra_columns = ["hour_of_day", "day_of_week", "month_of_year"]
-    if detailed_seasonality:
-        ts["minute_of_hour"] = ts.index.minute.to_series(index=ts.index).astype(DEFAULT_FLOAT_TYPE)
-        ts["minute_of_day"] = ts["minute_of_hour"] + ts["hour_of_day"] * 60
-        extra_columns.extend(["minute_of_hour", "minute_of_day"])
-    return UNIVARIATE_DATA_COLUMN, extra_columns, ts
+    return UNIVARIATE_DATA_COLUMN, ts
 
 
-def extract_features(ts: pd.DataFrame, y_column: str, lag_order: int = 2) -> Tuple[List[str], pd.DataFrame, int]:
+def extract_features(
+    ts: pd.DataFrame,
+    y_column: str,
+    seasonality_features: bool = True,
+    detailed_seasonality: bool = True,
+    extra_features: bool = True,
+    lag_order: int = DEFAULT_LAG_ORDER,
+) -> Tuple[List[str], pd.DataFrame, int]:
     """Extracts features from the univariate time series data.
 
     Args:
       ts: A pandas data frame containing 'TIME_COLUMN' and 'y_column' as the column names.
+      y_column: Name of the univariate output column.
+      seasonality_features: Flag for extracting seasonality features such as "hour_of_day".
+      detailed_seasonality: Flag for extracting detailed seasonality features such as "minute_of_hour".
+      extra_features: Flag for extracting lag features, dT and derivative columns.
       lag_order: Order of lag variables to be extracted into a new column.
 
     Returns:
@@ -59,34 +61,50 @@ def extract_features(ts: pd.DataFrame, y_column: str, lag_order: int = 2) -> Tup
     """
     assert ts.shape[0] > lag_order, "there is not enough data for lag order {}".format(lag_order)
     cols_added: List[str] = []
-    # Extract lag-k outputs
-    for lag in range(1, lag_order + 1):
-        lag_col = LAG_FEATURE_TEMPLATE.format(lag)
-        ts[lag_col] = ts[y_column].shift(lag)
-        cols_added.append(lag_col)
-    # Extract dT and d(count)/dT.
-    DT_COLUMN = "dT"
-    ts[DT_COLUMN] = (ts[TIME_COLUMN] - ts[TIME_COLUMN].shift(1)).astype(DEFAULT_FLOAT_TYPE)
-    cols_added.append(DT_COLUMN)
+    useless_rows = 0
+    if seasonality_features:
+        ts = index_from_time_column(ts)
+        ts["hour_of_day"] = ts.index.hour.to_series(index=ts.index).astype(DEFAULT_FLOAT_TYPE)
+        ts["day_of_week"] = ts.index.dayofweek.to_series(index=ts.index).astype(DEFAULT_FLOAT_TYPE)
+        ts["month_of_year"] = ts.index.month.to_series(index=ts.index).astype(DEFAULT_FLOAT_TYPE)
+        cols_added.extend(["hour_of_day", "day_of_week", "month_of_year"])
+        if detailed_seasonality:
+            ts["minute_of_hour"] = ts.index.minute.to_series(index=ts.index).astype(DEFAULT_FLOAT_TYPE)
+            ts["minute_of_day"] = ts["minute_of_hour"] + ts["hour_of_day"] * 60
+            cols_added.extend(["minute_of_hour", "minute_of_day"])
+    if extra_features:
+        # Extract lag-k outputs
+        for lag in range(1, lag_order + 1):
+            lag_col = LAG_FEATURE_TEMPLATE.format(lag)
+            ts[lag_col] = ts[y_column].shift(lag)
+            cols_added.append(lag_col)
+        # Extract dT and d(count)/dT.
+        DT_COLUMN = "dT"
+        ts[DT_COLUMN] = (ts[TIME_COLUMN] - ts[TIME_COLUMN].shift(1)).astype(DEFAULT_FLOAT_TYPE)
+        cols_added.append(DT_COLUMN)
 
-    ts[DERIVATIVE_COLUMN] = (ts[y_column].shift(1) - ts[y_column].shift(2)) / (
-        ts[TIME_COLUMN].shift(1) - ts[TIME_COLUMN].shift(2)
-    ).astype(DEFAULT_FLOAT_TYPE)
-    cols_added.append(DERIVATIVE_COLUMN)
+        ts[DERIVATIVE_COLUMN] = (ts[y_column].shift(1) - ts[y_column].shift(2)) / (
+            ts[TIME_COLUMN].shift(1) - ts[TIME_COLUMN].shift(2)
+        ).astype(DEFAULT_FLOAT_TYPE)
+        cols_added.append(DERIVATIVE_COLUMN)
+        useless_rows = max(useless_rows, max(lag_order, 2))
 
-    return cols_added, ts, max(lag_order, 2)
+    return cols_added, ts, useless_rows
 
 
 def load_data_with_features(
-    path: str, is_csv: bool = True, detailed_seasonality: bool = True
+    path: str,
+    is_csv: bool = True,
+    seasonality_features: bool = True,
+    detailed_seasonality: bool = True,
+    extra_features: bool = True,
+    lag_order: int = DEFAULT_LAG_ORDER,
 ) -> Tuple[str, List[str], pd.DataFrame, int]:
-    x_columns = []
-    y_column, cols_added, ts = load_data(path, is_csv=is_csv, detailed_seasonality=detailed_seasonality)
-    x_columns.extend(cols_added)
+    y_column, ts = load_data(path, is_csv=is_csv)
     ts[y_column] = ts[y_column].astype(DEFAULT_FLOAT_TYPE)
-
-    cols_added, ts, useless_rows = extract_features(ts, y_column, lag_order=LAG_ORDER)
-    x_columns.extend(cols_added)
+    x_columns, ts, useless_rows = extract_features(
+        ts, y_column, seasonality_features, detailed_seasonality, extra_features, lag_order=lag_order
+    )
 
     return y_column, x_columns, ts, useless_rows
 

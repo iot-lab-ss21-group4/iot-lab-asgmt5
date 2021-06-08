@@ -10,7 +10,7 @@ import pandas as pd
 from sklearn.linear_model import Lasso
 
 from utils import load_data_with_features, start_periodic_forecast
-from utils.data import DERIVATIVE_COLUMN, LAG_FEATURE_TEMPLATE, LAG_ORDER, TIME_COLUMN
+from utils.data import DEFAULT_LAG_ORDER, DERIVATIVE_COLUMN, LAG_FEATURE_TEMPLATE, TIME_COLUMN
 
 
 def train(args: argparse.Namespace) -> Lasso:
@@ -83,7 +83,7 @@ def predict(args: argparse.Namespace, model_fit: Optional[Lasso] = None) -> str:
     for i in range(useless_rows, ts.shape[0]):
         pred_i = model_fit.predict(ts[x_columns].iloc[i : i + 1])
         ts.loc[ts.index[i], y_column] = pred_i
-        for lag in range(1, LAG_ORDER + 1):
+        for lag in range(1, DEFAULT_LAG_ORDER + 1):
             if i + lag >= ts.shape[0]:
                 break
             ts.loc[ts.index[i + lag], LAG_FEATURE_TEMPLATE.format(lag)] = pred_i

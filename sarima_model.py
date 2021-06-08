@@ -8,20 +8,22 @@ import matplotlib.pyplot as plt
 import numpy as np
 import optuna
 import pandas as pd
+from scipy.interpolate import interp1d
 from sklearn.metrics import mean_squared_error
 from statsmodels.base.wrapper import ResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResultsWrapper
 
-from utils import load_data, regularize_data, start_periodic_forecast
+from utils import extract_features, load_data, load_data_with_features, regularize_data, start_periodic_forecast
 from utils.data import DEFAULT_FLOAT_TYPE, TIME_COLUMN
 
 EXTRA_INFO_FILE_POSTFIX = ".info"
 
 
 def train(args: argparse.Namespace) -> SARIMAXResultsWrapper:
-    y_column, exog_columns, ts = load_data(args.training_data_path, args.is_data_csv, detailed_seasonality=False)
-    ts[y_column] = ts[y_column].astype(DEFAULT_FLOAT_TYPE)
-    freq, ts = regularize_data(ts, y_column)
+    y_column, exog_columns, ts, _ = load_data_with_features(
+        args.training_data_path, args.is_data_csv, detailed_seasonality=False, extra_features=False
+    )
+    avg_dt, ts = regularize_data(ts, y_column)
     # Remove constant columns
     constant_columns = ~((ts != ts.iloc[0]).any())
     exog_columns_set = set(exog_columns)
@@ -36,7 +38,7 @@ def train(args: argparse.Namespace) -> SARIMAXResultsWrapper:
     with open(args.model_path + EXTRA_INFO_FILE_POSTFIX, "wb") as f:
         pickle.dump(
             (
-                freq,
+                avg_dt,
                 train_ts.loc[train_ts.index[-1], TIME_COLUMN],
                 train_ts.loc[train_ts.index[-1], y_column],
                 exog_columns,
@@ -55,8 +57,8 @@ def train(args: argparse.Namespace) -> SARIMAXResultsWrapper:
         # while len(past_day_offsets) > 0 and past_day_offsets[-1] == 0:
         #     past_day_offsets.pop()
         # P, D, Q, S = past_day_offsets, 0, past_day_offsets, 1440
-        p, d = trial.suggest_int("p", 0, 3), trial.suggest_int("d", 0, 2)
-        q = trial.suggest_int("q", 0 if p + d > 0 else 1, 3)
+        p, d = trial.suggest_int("p", 0, 5), trial.suggest_int("d", 0, 3)
+        q = trial.suggest_int("q", 0 if p + d > 0 else 1, 5)
         with trial_lock:
             if (p, d, q) in trial_dict:
                 return trial_dict[(p, d, q)]
@@ -64,6 +66,7 @@ def train(args: argparse.Namespace) -> SARIMAXResultsWrapper:
         model_fit = forecast_model.fit(disp=False)
         test_pred = model_fit.forecast(test_ts.shape[0], exog=test_ts[exog_columns])
         loss = mean_squared_error(test_ts[y_column].to_numpy(), test_pred.to_numpy())
+        # loss = model_fit.info_criteria("bic")
         with trial_lock:
             trial_dict[(p, d, q)] = loss
         return loss
@@ -98,16 +101,31 @@ def prepare_pred_input(pred_time: int, pred_data_path: str):
 
 
 def predict(args: argparse.Namespace, model_fit: Optional[SARIMAXResultsWrapper] = None) -> str:
-    y_column, _, ts = load_data(args.pred_data_path, detailed_seasonality=False)
-    # TODO: use freq and last_t to forecast beyond the last datapoint and
-    # use interpolation to predict exactly at the datapoint times.
+    y_column, ts = load_data(args.pred_data_path)
+    pred_time = ts.loc[ts.index[-1], TIME_COLUMN]
+    # Uses freq and last_t to forecast beyond the last datapoint and
+    # uses interpolation to predict exactly at the datapoint times.
     with open(args.model_path + EXTRA_INFO_FILE_POSTFIX, "rb") as f:
-        freq, last_t, last_y, exog_columns = pickle.load(f)
-
+        avg_dt, last_t, last_y, exog_columns = pickle.load(f)
+    avg_dt_sec = avg_dt.delta.total_seconds()
+    forecast_size = int(np.ceil((pred_time - last_t) / avg_dt_sec))
+    times, ys = [last_t], [last_y] + [DEFAULT_FLOAT_TYPE()] * forecast_size
+    for i in range(1, forecast_size + 1):
+        times.append(last_t + int(np.round(i * avg_dt_sec)))
+    regular_ts = pd.DataFrame(
+        {TIME_COLUMN: pd.Series(times), y_column: pd.Series(ys, dtype=DEFAULT_FLOAT_TYPE)},
+        columns=[TIME_COLUMN, y_column],
+    )
+    _, regular_ts, _ = extract_features(regular_ts, y_column, detailed_seasonality=False, extra_features=False)
+    # Load the model and predict at the regular times.
     if model_fit is None:
         model_fit = ResultsWrapper.load(args.model_path)
-    pred: pd.Series = model_fit.forecast(ts.shape[0], exog=ts[exog_columns])
-    pred.rename(y_column).round().to_csv(args.pred_out_path, index=False)
+    pred: pd.Series = model_fit.forecast(forecast_size, exog=regular_ts.loc[regular_ts.index[1:], exog_columns])
+    regular_ts.loc[regular_ts.index[1:], y_column] = pred.to_numpy()
+    # Use regular time predictions and linear interpolation to estimate at the exact times.
+    univariate_f = interp1d(regular_ts[TIME_COLUMN].to_numpy(), regular_ts[y_column].to_numpy())
+    ts[y_column] = univariate_f(ts[TIME_COLUMN].to_numpy()).astype(DEFAULT_FLOAT_TYPE)
+    ts[y_column].round().to_csv(args.pred_out_path, index=False)
     return args.pred_out_path
 
 
