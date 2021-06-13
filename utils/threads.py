@@ -45,7 +45,7 @@ class ModelTrainerThread(threading.Thread):
         self._condition_q = queue.Queue()
         threading.Thread(target=self._check_data_pull_events).start()
         self._next_train_enable_time = time.time() + self.train_period
-        threading.Timer(self._next_train_enable_time - time.time(), self._enable_training).start()
+        threading.Timer(max(0.0, self._next_train_enable_time - time.time()), self._enable_training).start()
 
     def _check_data_pull_events(self):
         while True:
@@ -56,7 +56,7 @@ class ModelTrainerThread(threading.Thread):
         self._condition_q.put(ModelTrainerThread.CAN_TRAIN_COND)
         # Using the delaying method below is not affected by time drift.
         self._next_train_enable_time += self.train_period
-        threading.Timer(self._next_train_enable_time - time.time(), self._enable_training).start()
+        threading.Timer(max(0.0, self._next_train_enable_time - time.time()), self._enable_training).start()
 
     def run(self):
         condition_states = {
@@ -105,13 +105,13 @@ class PeriodicForecasterThread(threading.Thread):
 
         self.event_in_q.put(None)
         self._next_forecast_time = time.time() + self.forecast_period
-        threading.Timer(self._next_forecast_time - time.time(), self._nofity_for_forecast).start()
+        threading.Timer(max(0.0, self._next_train_enable_time - time.time()), self._nofity_for_forecast).start()
 
     def _nofity_for_forecast(self):
         self.event_in_q.put(None)
         # Using the delaying method below is not affected by time drift.
         self._next_forecast_time += self.forecast_period
-        threading.Timer(self._next_forecast_time - time.time(), self._nofity_for_forecast).start()
+        threading.Timer(max(0.0, self._next_train_enable_time - time.time()), self._nofity_for_forecast).start()
 
     def run(self):
         while True:
