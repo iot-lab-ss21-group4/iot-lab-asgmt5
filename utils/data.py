@@ -114,7 +114,7 @@ def regularize_data(ts: pd.DataFrame, y_column: str) -> Tuple[pd.offsets.Nano, p
         return ts
     avg_dt = (
         pd.Timestamp(ts.loc[ts.index[-1], TIME_COLUMN], unit="s") - pd.Timestamp(ts.loc[ts.index[0], TIME_COLUMN], unit="s")
-    ) / ts.shape[0]
+    ) / (ts.shape[0] - 1)
     time_scaler = MinMaxScaler().fit(ts[TIME_COLUMN].to_numpy().reshape((-1, 1)))
     regular_time_col = "regular_{}".format(TIME_COLUMN)
     ts[regular_time_col] = time_scaler.transform(ts[TIME_COLUMN].to_numpy().reshape((-1, 1)))
